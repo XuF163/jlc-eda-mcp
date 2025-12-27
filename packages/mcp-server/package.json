@@ -1,0 +1,28 @@
+{
+	"name": "jlceda-eda-mcp",
+	"version": "0.0.0",
+	"description": "MCP server that drives JLCEDA Pro local client via an extension bridge",
+	"type": "module",
+	"bin": {
+		"jlceda-eda-mcp": "./dist/cli.js"
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"dev": "npm run build && node --enable-source-maps dist/cli.js --port 9050",
+		"typecheck": "tsc -p tsconfig.json --noEmit"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.25.1",
+		"ws": "^8.18.3",
+		"zod": "^4.2.1"
+	},
+	"devDependencies": {
+		"@types/node": "^25.0.3",
+		"@types/ws": "^8.5.14",
+		"typescript": "^5.9.3"
+	},
+	"engines": {
+		"node": ">=20.5.0"
+	}
+}
+

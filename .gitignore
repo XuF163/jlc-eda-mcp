@@ -1,0 +1,9 @@
+node_modules/
+dist/
+build/dist/
+packages/*/dist/
+packages/*/node_modules/
+packages/*/package-lock.json
+npm-debug.log*
+debug.log
+

@@ -1,0 +1,18 @@
+{
+	"name": "jlceda-local-mcp-workspace",
+	"private": true,
+	"workspaces": [
+		"packages/*"
+	],
+	"scripts": {
+		"build:mcp": "npm -w packages/mcp-server run build",
+		"build:ext": "npm -w packages/eda-extension run build",
+		"build": "npm run build:mcp && npm run build:ext",
+		"typecheck:mcp": "npm -w packages/mcp-server run typecheck",
+		"typecheck:ext": "npm -w packages/eda-extension run typecheck",
+		"typecheck": "npm run typecheck:mcp && npm run typecheck:ext"
+	},
+	"engines": {
+		"node": ">=20.5.0"
+	}
+}

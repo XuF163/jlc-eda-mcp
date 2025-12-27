@@ -1,0 +1,97 @@
+{
+	"name": "jlceda-mcp-bridge",
+	"uuid": "eee9f29013dd4ca48309a1e78447f79b",
+	"displayName": "JLCEDA MCP Bridge",
+	"description": "Bridge JLCEDA Pro local client to an MCP server (WebSocket).",
+	"version": "0.0.3",
+	"publisher": "local-dev",
+	"engines": {
+		"eda": "^3.0"
+	},
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "extension-store",
+		"url": ""
+	},
+	"categories": "Other",
+	"keywords": [
+		"MCP",
+		"Automation"
+	],
+	"images": {
+		"logo": "./images/logo.png"
+	},
+	"homepage": "https://prodocs.lceda.cn/cn/api/guide/",
+	"bugs": "https://prodocs.lceda.cn/cn/api/guide/error-handling.html",
+	"activationEvents": {},
+	"entry": "./dist/index",
+	"dependentExtensions": {},
+	"headerMenus": {
+		"home": [
+			{
+				"id": "mcp_bridge_home",
+				"title": "MCP Bridge",
+				"menuItems": [
+					{
+						"id": "mcp_bridge_connect_home",
+						"title": "Connect",
+						"registerFn": "mcpConnect"
+					},
+					{
+						"id": "mcp_bridge_disconnect_home",
+						"title": "Disconnect",
+						"registerFn": "mcpDisconnect"
+					},
+					{
+						"id": "mcp_bridge_status_home",
+						"title": "Status",
+						"registerFn": "mcpStatus"
+					},
+					{
+						"id": "mcp_bridge_diagnostics_home",
+						"title": "Diagnostics",
+						"registerFn": "mcpDiagnostics"
+					},
+					{
+						"id": "mcp_bridge_configure_home",
+						"title": "Configure...",
+						"registerFn": "mcpConfigure"
+					}
+				]
+			}
+		],
+		"sch": [
+			{
+				"id": "mcp_bridge_sch",
+				"title": "MCP Bridge",
+				"menuItems": [
+					{
+						"id": "mcp_bridge_connect_sch",
+						"title": "Connect",
+						"registerFn": "mcpConnect"
+					},
+					{
+						"id": "mcp_bridge_disconnect_sch",
+						"title": "Disconnect",
+						"registerFn": "mcpDisconnect"
+					},
+					{
+						"id": "mcp_bridge_status_sch",
+						"title": "Status",
+						"registerFn": "mcpStatus"
+					},
+					{
+						"id": "mcp_bridge_diagnostics_sch",
+						"title": "Diagnostics",
+						"registerFn": "mcpDiagnostics"
+					},
+					{
+						"id": "mcp_bridge_configure_sch",
+						"title": "Configure...",
+						"registerFn": "mcpConfigure"
+					}
+				]
+			}
+		]
+	}
+}
