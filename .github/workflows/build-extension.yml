@@ -1,0 +1,51 @@
+name: build-extension
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./packages/eda-extension/extension.json').version")"
+          DATE="$(date -u +%Y%m%d)"
+          NAME="jlceda-mcp-v${VERSION}-${DATE}"
+
+          mkdir -p artifacts
+          cp "packages/eda-extension/build/dist/jlceda-mcp-bridge_v${VERSION}.eext" "artifacts/${NAME}.eext"
+
+          echo "ARTIFACT_NAME=${NAME}" >> "$GITHUB_ENV"
+          echo "Built: artifacts/${NAME}.eext"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: artifacts/*.eext
+          if-no-files-found: error
