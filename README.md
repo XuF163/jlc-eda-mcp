@@ -12,6 +12,9 @@
 - 环境与安装：`docs/SETUP.md`
 - MCP tools 清单：`docs/MCP_TOOLS.md`
 - SchematicIR（带坐标布局）：`docs/SCHEMATIC_IR.md`
+- Verify Nets（连通性验证）：`docs/VERIFY_NETS.md`
+- 绘图偏好（美观/可审查/便于采购）：`docs/SCHEMATIC_STYLE.md`
+- Roadmap（后续工具规划）：`docs/ROADMAP.md`
 - WebSocket 协议：`docs/PROTOCOL.md`
 - 删除/卸载扩展排障：`docs/UNINSTALL.md`
 
@@ -22,7 +25,7 @@
 ```bash
 npm install
 npm run build
-node packages/mcp-server/dist/cli.js --port 9050 --token YOUR_TOKEN
+node packages/mcp-server/dist/cli.js --port 9050
 ```
 
 然后在 EDA 内安装扩展并连接（见 `docs/SETUP.md`）。
@@ -34,6 +37,6 @@ node packages/mcp-server/dist/cli.js --port 9050 --token YOUR_TOKEN
 ```json
 {
   "command": "npx",
-  "args": ["-y", "jlceda-eda-mcp", "--port", "9050", "--token", "YOUR_TOKEN"]
+  "args": ["-y", "jlceda-eda-mcp", "--port", "9050"]
 }
 ```

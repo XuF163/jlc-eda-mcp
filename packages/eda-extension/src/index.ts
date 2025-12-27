@@ -1,27 +1,37 @@
 import { loadBridgeConfig, saveBridgeConfig } from './bridge/config';
 import { HEADER_MENUS } from './bridge/headerMenus';
-import { showInfo, inputText } from './bridge/ui';
+import { showInfo, showToast, inputText, selectOne } from './bridge/ui';
 import { BridgeClient } from './bridge/wsClient';
 import { handleRpc } from './handlers';
 
 const bridge = new BridgeClient();
 
 export function activate(): void {
-	// Do not auto-connect; user controls it via menu.
+	// Auto-connect by default (can be disabled in config).
 	// Ensure header menus are visible even if the extension manager fails to inject `headerMenus` from extension.json.
 	void (async () => {
 		try {
 			await eda.sys_HeaderMenu.replaceHeaderMenus(HEADER_MENUS as any);
 		} catch (err) {
 			// Non-fatal; the extension can still be used via command invocation if menus are injected elsewhere.
-			showInfo(`Failed to register header menus: ${(err as Error)?.message || String(err)}`);
+			showToast(`Failed to register header menus: ${(err as Error)?.message || String(err)}`, 'warn', 6);
 		}
 
 		try {
 			const editorVersion = eda.sys_Environment.getEditorCurrentVersion();
-			showInfo(`MCP Bridge loaded (EDA ${editorVersion}). Open "MCP Bridge" in the top menu.`);
+			showToast(`MCP Bridge loaded (EDA ${editorVersion}).`, 'info', 3);
 		} catch {
-			showInfo('MCP Bridge loaded. Open "MCP Bridge" in the top menu.');
+			showToast('MCP Bridge loaded.', 'info', 3);
+		}
+
+		const cfg = loadBridgeConfig();
+		if (cfg.autoConnect !== false) {
+			bridge.startAutoConnect({
+				onInfo: (msg) => showToast(msg, msg.startsWith('Connected to') ? 'success' : 'error', 4),
+				onRequest: async (method, params) => {
+					return await handleRpc(method, params, { getStatus: () => bridge.getStatusSnapshot() });
+				},
+			});
 		}
 	})();
 }
@@ -36,8 +46,15 @@ export function deactivate(): void {
 }
 
 export function mcpConnect(): void {
+	bridge.startAutoConnect({
+		onInfo: (msg) => showToast(msg, msg.startsWith('Connected to') ? 'success' : 'info', 4),
+		onRequest: async (method, params) => {
+			return await handleRpc(method, params, { getStatus: () => bridge.getStatusSnapshot() });
+		},
+	});
+	// Trigger an immediate connection attempt for manual usage feedback.
 	bridge.connect({
-		onInfo: (msg) => showInfo(msg),
+		onInfo: (msg) => showToast(msg, msg.startsWith('Connected to') ? 'success' : 'info', 4),
 		onRequest: async (method, params) => {
 			return await handleRpc(method, params, { getStatus: () => bridge.getStatusSnapshot() });
 		},
@@ -45,7 +62,8 @@ export function mcpConnect(): void {
 }
 
 export function mcpDisconnect(): void {
-	bridge.disconnect({ onInfo: (msg) => showInfo(msg) });
+	bridge.stopAutoConnect();
+	bridge.disconnect({ onInfo: (msg) => showToast(msg, 'info', 3) });
 }
 
 export function mcpStatus(): void {
@@ -84,15 +102,20 @@ export async function mcpConfigure(): Promise<void> {
 	const url = await inputText('MCP Bridge', 'WebSocket URL', cfg.serverUrl, { type: 'url', placeholder: 'ws://127.0.0.1:9050' });
 	if (typeof url === 'string' && url.trim()) cfg.serverUrl = url.trim();
 
-	// Some EDA versions need a short delay before opening a second dialog.
 	await new Promise((r) => setTimeout(r, 150));
-
-	const token = await inputText('MCP Bridge', 'Bridge token', cfg.token ?? '', {
-		type: 'password',
-		afterContent: '留空表示服务端不要求 token（或服务端已禁用 token 检查）',
-	});
-	cfg.token = token?.trim() ? token.trim() : undefined;
+	const auto = await selectOne(
+		'MCP Bridge',
+		'Auto-connect on EDA startup?',
+		[
+			{ value: 'keep', displayContent: 'Keep current' },
+			{ value: 'on', displayContent: 'ON (recommended)' },
+			{ value: 'off', displayContent: 'OFF' },
+		],
+		'keep',
+	);
+	if (auto === 'on') cfg.autoConnect = true;
+	if (auto === 'off') cfg.autoConnect = false;
 
 	await saveBridgeConfig(cfg);
-	showInfo('Saved. Reconnect to apply.');
+	showToast('Saved. Reconnect to apply.', 'success', 3);
 }

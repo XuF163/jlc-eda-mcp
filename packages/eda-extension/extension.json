@@ -3,7 +3,7 @@
 	"uuid": "eee9f29013dd4ca48309a1e78447f79b",
 	"displayName": "JLCEDA MCP Bridge",
 	"description": "Bridge JLCEDA Pro local client to an MCP server (WebSocket).",
-	"version": "0.0.3",
+	"version": "0.0.7",
 	"publisher": "local-dev",
 	"engines": {
 		"eda": "^3.0"

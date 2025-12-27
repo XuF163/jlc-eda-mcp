@@ -6,7 +6,7 @@
 
 - `jlc.status`：桥接连接状态
 - `jlc.bridge.ping`：连通性检查
-- `jlc.bridge.show_message`：在 EDA 内弹出提示
+- `jlc.bridge.show_message`：在 EDA 内显示提示（优先 toast；不再弹出阻塞式弹窗）
 
 ## 文档 / 导出
 
@@ -15,6 +15,9 @@
 - `jlc.document.export_epro2`：导出当前文档为 `.epro2/.epro`
 - `jlc.document.get_source`：获取文档源码（默认截断到 `maxChars=200000`）
 - `jlc.schematic.export_netlist`：导出当前原理图网表文件
+- `jlc.schematic.get_netlist`：读取当前原理图网表文本（不落盘，支持 `maxChars` 截断）
+- `jlc.schematic.verify_nets`：基于 `document source` 解析导线与 NET 属性做连通性验证（网表 API 不稳定时的兜底）
+- `jlc.schematic.verify_netlist`：基于 `SCH_Netlist.getNetlist()` 校验“网名 -> Ref.Pin”归属（可覆盖跨线网标/端口的逻辑连接）
 
 ## 原理图绘制（MVP）
 
@@ -23,7 +26,18 @@
 - `jlc.library.search_devices`：搜索内置器件库（返回 deviceUuid/libraryUuid）
 - `jlc.schematic.place_device`：放置器件到指定坐标
 - `jlc.schematic.get_component_pins`：读取器件引脚坐标/编号/名称
+- `jlc.schematic.list_components`：列出当前页元件（包含 netPorts/netFlags 等组件类图元）
+- `jlc.schematic.list_wires`：列出当前页导线（可按 net 过滤）
+- `jlc.schematic.list_texts`：列出当前页文本
+- `jlc.schematic.find_by_designator`：按位号查找 primitiveId（R1/U2…）
+- `jlc.schematic.select`：按 primitiveId 选择/可选缩放定位
+- `jlc.schematic.crossprobe_select`：按 components/pins/nets 交叉选择（高亮/选中）
+- `jlc.schematic.clear_selection`：清空选择
+- `jlc.schematic.zoom_to_all`：缩放到适应全部图元
+- `jlc.schematic.indicator.show` / `jlc.schematic.indicator.clear`：在画布上显示/清除红色定位标记（调试用）
+- `jlc.schematic.snapshot`：导出结构化快照（components/wires/texts），用于“读回 -> 决策 -> 增量修改”
 - `jlc.schematic.connect_pins`：按引脚编号/名称自动生成导线（Manhattan/直线）
+- `jlc.schematic.netlabel.attach_pin`：在引脚处放置**网络标签（Alt+N，本质是 Wire.NET）**，不会创建网络端口
 - `jlc.schematic.wire.create`：按坐标显式创建导线
 - `jlc.schematic.drc`：运行 DRC
 - `jlc.schematic.save`：保存
@@ -75,6 +89,23 @@
     "toPrimitiveId": "R2_PRIMITIVE_ID",
     "toPinNumber": "1",
     "net": "NET1"
+  }
+}
+```
+
+5.1) 网络标签（Alt+N）：
+
+> 注意：网络标签 ≠ 网络端口。网络标签是导线的 `NET` 属性；网络端口是 `netPorts`（符号不同）。
+
+```json
+{
+  "tool": "jlc.schematic.netlabel.attach_pin",
+  "arguments": {
+    "primitiveId": "R1_PRIMITIVE_ID",
+    "pinNumber": "1",
+    "net": "VCC",
+    "direction": "left",
+    "length": 40
   }
 }
 ```

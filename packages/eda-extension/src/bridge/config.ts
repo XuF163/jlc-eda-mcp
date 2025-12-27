@@ -1,6 +1,5 @@
 export type BridgeConfig = {
 	serverUrl: string;
-	token?: string;
 	autoConnect?: boolean;
 };
 
@@ -13,9 +12,8 @@ export function loadBridgeConfig(): BridgeConfig {
 		if (!raw) return { serverUrl: DEFAULT_SERVER_URL, autoConnect: true };
 
 		const serverUrl = typeof raw?.serverUrl === 'string' && raw.serverUrl.trim() ? raw.serverUrl.trim() : DEFAULT_SERVER_URL;
-		const token = typeof raw?.token === 'string' && raw.token.trim() ? raw.token.trim() : undefined;
 		const autoConnect = typeof raw?.autoConnect === 'boolean' ? raw.autoConnect : true;
-		return { serverUrl, token, autoConnect };
+		return { serverUrl, autoConnect };
 	} catch {
 		// Fallback (older builds stored it in localStorage)
 		try {
@@ -24,7 +22,6 @@ export function loadBridgeConfig(): BridgeConfig {
 			const parsed = JSON.parse(String(raw)) as Partial<BridgeConfig>;
 			return {
 				serverUrl: parsed.serverUrl || DEFAULT_SERVER_URL,
-				token: parsed.token,
 				autoConnect: typeof parsed.autoConnect === 'boolean' ? parsed.autoConnect : true,
 			};
 		} catch {

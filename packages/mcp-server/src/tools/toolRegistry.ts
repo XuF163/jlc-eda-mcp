@@ -1,7 +1,10 @@
 import { z } from 'zod';
+import { createHash } from 'node:crypto';
 
 import type { WsBridge } from '../bridge/wsBridge.js';
 import { SchematicIrSchema } from '../ir/schematicIr.js';
+import { VerifyNetlistSchema, verifyNetlist } from './verifyNetlist.js';
+import { VerifyNetsSchema, verifyNets } from './verifyNets.js';
 
 type ToolHandlerResult = { content: Array<{ type: 'text'; text: string }> };
 
@@ -50,6 +53,12 @@ const ExportNetlistSchema = z.object({
 	savePath: z.string().min(1).optional(),
 	fileName: z.string().min(1).optional(),
 	force: z.boolean().optional(),
+});
+
+const GetNetlistSchema = z.object({
+	netlistType: z.string().min(1).optional(),
+	maxChars: z.number().int().positive().optional(),
+	timeoutMs: z.number().int().positive().optional(),
 });
 
 const SearchDevicesSchema = z.object({
@@ -103,6 +112,82 @@ const CreateWireSchema = z.object({
 	net: z.string().min(1).optional(),
 });
 
+function makeStableId(prefix: string, raw: string): string {
+	const digest = createHash('sha1').update(raw).digest('hex').slice(0, 10);
+	return `${prefix}_${digest}`;
+}
+
+const AttachNetLabelToPinSchema = z
+	.object({
+		id: z.string().min(1).optional(),
+		primitiveId: z.string().min(1),
+		pinNumber: z.string().min(1).optional(),
+		pinName: z.string().min(1).optional(),
+		net: z.string().min(1),
+		direction: z.enum(['left', 'right', 'up', 'down']).optional(),
+		length: z.number().positive().optional(),
+	})
+	.superRefine((v, ctx) => {
+		if (!v.pinNumber && !v.pinName) {
+			ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'pinNumber or pinName is required' });
+		}
+	});
+
+const ListComponentsSchema = z.object({
+	componentType: z.string().min(1).optional(),
+	allSchematicPages: z.boolean().optional(),
+	limit: z.number().int().positive().optional(),
+});
+
+const ListWiresSchema = z
+	.object({
+		net: z.string().min(1).optional(),
+		nets: z.array(z.string().min(1)).optional(),
+	})
+	.superRefine((v, ctx) => {
+		if (v.net && v.nets?.length) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Provide either net or nets, not both' });
+	});
+
+const FindByDesignatorSchema = z.object({
+	designator: z.string().min(1),
+});
+
+const SelectPrimitivesSchema = z.object({
+	primitiveIds: z.array(z.string().min(1)).min(1),
+	clearFirst: z.boolean().optional(),
+	zoom: z.boolean().optional(),
+});
+
+const CrossProbeSelectSchema = z.object({
+	components: z.array(z.string().min(1)).optional(),
+	pins: z.array(z.string().min(1)).optional(),
+	nets: z.array(z.string().min(1)).optional(),
+	highlight: z.boolean().optional(),
+	select: z.boolean().optional(),
+	zoom: z.boolean().optional(),
+});
+
+const ZoomToAllSchema = z.object({
+	tabId: z.string().min(1).optional(),
+});
+
+const IndicatorShowSchema = z.object({
+	x: z.number(),
+	y: z.number(),
+	shape: z.enum(['point', 'circle']).optional(),
+	r: z.number().positive().optional(),
+});
+
+const IndicatorClearSchema = z.object({
+	tabId: z.string().min(1).optional(),
+});
+
+const SnapshotSchema = z.object({
+	includeComponents: z.boolean().optional(),
+	includeWires: z.boolean().optional(),
+	includeTexts: z.boolean().optional(),
+});
+
 const DrcSchema = z.object({
 	strict: z.boolean().optional(),
 	userInterface: z.boolean().optional(),
@@ -135,7 +220,7 @@ export function createToolRegistry(bridge: WsBridge): Array<ToolDefinition> {
 		},
 		{
 			name: 'jlc.bridge.show_message',
-			description: 'Show a message in the JLCEDA client via the extension bridge.',
+			description: 'Show a non-blocking toast in the JLCEDA client via the extension bridge (best-effort; may no-op).',
 			inputSchema: {
 				type: 'object',
 				properties: { message: { type: 'string' } },
@@ -260,6 +345,24 @@ export function createToolRegistry(bridge: WsBridge): Array<ToolDefinition> {
 			},
 		},
 		{
+			name: 'jlc.schematic.get_netlist',
+			description: 'Get netlist text from current schematic (no file export).',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					netlistType: { type: 'string' },
+					maxChars: { type: 'number' },
+					timeoutMs: { type: 'number' },
+				},
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = GetNetlistSchema.parse(args);
+				const result = await bridge.call('schematic.getNetlist', parsed, 120_000);
+				return asJsonText(result);
+			},
+		},
+		{
 			name: 'jlc.library.search_devices',
 			description: 'Search built-in device library (prefers system library by default).',
 			inputSchema: {
@@ -324,6 +427,190 @@ export function createToolRegistry(bridge: WsBridge): Array<ToolDefinition> {
 			},
 		},
 		{
+			name: 'jlc.schematic.list_components',
+			description: 'List schematic components on the current page (includes net ports/flags).',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					componentType: { type: 'string' },
+					allSchematicPages: { type: 'boolean' },
+					limit: { type: 'number' },
+				},
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = ListComponentsSchema.parse(args);
+				const result = await bridge.call('schematic.listComponents', parsed, 60_000);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.list_wires',
+			description: 'List schematic wires on the current page (optionally filter by net name).',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					net: { type: 'string' },
+					nets: { type: 'array', items: { type: 'string' } },
+				},
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = ListWiresSchema.parse(args);
+				const result = await bridge.call('schematic.listWires', parsed, 60_000);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.list_texts',
+			description: 'List schematic text primitives on the current page.',
+			inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+			run: async (args) => {
+				EmptySchema.parse(args);
+				const result = await bridge.call('schematic.listTexts', undefined, 60_000);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.find_by_designator',
+			description: 'Find component primitives by designator (e.g. R1/U2).',
+			inputSchema: {
+				type: 'object',
+				properties: { designator: { type: 'string' } },
+				required: ['designator'],
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = FindByDesignatorSchema.parse(args);
+				const result = await bridge.call('schematic.findByDesignator', parsed, 30_000);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.select',
+			description: 'Select primitives by primitiveId (optionally zoom to selection).',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					primitiveIds: { type: 'array', items: { type: 'string' } },
+					clearFirst: { type: 'boolean' },
+					zoom: { type: 'boolean' },
+				},
+				required: ['primitiveIds'],
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = SelectPrimitivesSchema.parse(args);
+				const result = await bridge.call('schematic.selectPrimitives', parsed, 30_000);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.crossprobe_select',
+			description: 'Select/highlight schematic objects by components/pins/nets (cross-probe).',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					components: { type: 'array', items: { type: 'string' } },
+					pins: { type: 'array', items: { type: 'string' } },
+					nets: { type: 'array', items: { type: 'string' } },
+					highlight: { type: 'boolean' },
+					select: { type: 'boolean' },
+					zoom: { type: 'boolean' },
+				},
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = CrossProbeSelectSchema.parse(args);
+				const result = await bridge.call('schematic.crossProbeSelect', parsed, 30_000);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.clear_selection',
+			description: 'Clear schematic selection.',
+			inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+			run: async (args) => {
+				EmptySchema.parse(args);
+				const result = await bridge.call('schematic.clearSelection', undefined, 10_000);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.zoom_to_all',
+			description: 'Zoom to fit all primitives on the current schematic page.',
+			inputSchema: {
+				type: 'object',
+				properties: { tabId: { type: 'string' } },
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = ZoomToAllSchema.parse(args);
+				const result = await bridge.call('schematic.zoomToAll', parsed, 30_000);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.indicator.show',
+			description: 'Show a temporary red indicator marker on the schematic canvas (for debugging).',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					x: { type: 'number' },
+					y: { type: 'number' },
+					shape: { type: 'string', enum: ['point', 'circle'] },
+					r: { type: 'number' },
+				},
+				required: ['x', 'y'],
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = IndicatorShowSchema.parse(args);
+				const result = await bridge.call('schematic.indicator.show', parsed, 10_000);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.indicator.clear',
+			description: 'Clear all indicator markers on the schematic canvas.',
+			inputSchema: {
+				type: 'object',
+				properties: { tabId: { type: 'string' } },
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = IndicatorClearSchema.parse(args);
+				const result = await bridge.call('schematic.indicator.clear', parsed, 10_000);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.snapshot',
+			description: 'Export a structured snapshot (components/wires/texts) for LLM readback and incremental edits.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					includeComponents: { type: 'boolean' },
+					includeWires: { type: 'boolean' },
+					includeTexts: { type: 'boolean' },
+				},
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = SnapshotSchema.parse(args);
+				const includeComponents = parsed.includeComponents ?? true;
+				const includeWires = parsed.includeWires ?? true;
+				const includeTexts = parsed.includeTexts ?? true;
+
+				const doc = await bridge.call('getCurrentDocumentInfo', undefined, 10_000);
+				const components = includeComponents ? await bridge.call('schematic.listComponents', {}, 60_000) : undefined;
+				const wires = includeWires ? await bridge.call('schematic.listWires', {}, 60_000) : undefined;
+				const texts = includeTexts ? await bridge.call('schematic.listTexts', undefined, 60_000) : undefined;
+
+				return asJsonText({ ok: true, doc, snapshot: { components, wires, texts } });
+			},
+		},
+		{
 			name: 'jlc.schematic.connect_pins',
 			description: 'Connect two component pins by creating a wire (auto manhattan routing).',
 			inputSchema: {
@@ -346,6 +633,83 @@ export function createToolRegistry(bridge: WsBridge): Array<ToolDefinition> {
 				const parsed = ConnectPinsSchema.parse(args);
 				const result = await bridge.call('schematic.connectPins', parsed, 60_000);
 				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.netlabel.attach_pin',
+			description:
+				'Attach a Net Label (wire NET attribute, like Alt+N) to a component pin by creating/updating a short labeled wire segment. Does NOT create Net Ports.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					id: { type: 'string' },
+					primitiveId: { type: 'string' },
+					pinNumber: { type: 'string' },
+					pinName: { type: 'string' },
+					net: { type: 'string' },
+					direction: { type: 'string', enum: ['left', 'right', 'up', 'down'] },
+					length: { type: 'number' },
+				},
+				required: ['primitiveId', 'net'],
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = AttachNetLabelToPinSchema.parse(args);
+
+				const pinsResult = (await bridge.call('schematic.getComponentPins', { primitiveId: parsed.primitiveId }, 30_000)) as any;
+				const pins: Array<any> = Array.isArray(pinsResult?.pins) ? pinsResult.pins : [];
+				if (!pins.length) throw new Error(`No pins found for primitiveId=${parsed.primitiveId}`);
+
+				const findPin = (): any => {
+					if (parsed.pinNumber) {
+						const matches = pins.filter((p) => String(p?.pinNumber) === parsed.pinNumber);
+						if (matches.length === 1) return matches[0];
+						if (matches.length > 1) throw new Error(`Ambiguous pinNumber=${parsed.pinNumber}`);
+					}
+					if (parsed.pinName) {
+						const matches = pins.filter((p) => String(p?.pinName) === parsed.pinName);
+						if (matches.length === 1) return matches[0];
+						if (matches.length > 1) throw new Error(`Ambiguous pinName=${parsed.pinName}`);
+					}
+					throw new Error(`Pin not found (primitiveId=${parsed.primitiveId}, pinNumber=${parsed.pinNumber ?? ''}, pinName=${parsed.pinName ?? ''})`);
+				};
+
+				const pin = findPin();
+				const x1 = Number(pin?.x);
+				const y1 = Number(pin?.y);
+				if (!Number.isFinite(x1) || !Number.isFinite(y1)) throw new Error('Pin coordinates are invalid');
+
+				const length = parsed.length ?? 40;
+				const direction = parsed.direction ?? 'right';
+				const dx = direction === 'left' ? -length : direction === 'right' ? length : 0;
+				const dy = direction === 'up' ? -length : direction === 'down' ? length : 0;
+				const line = [x1, y1, x1 + dx, y1 + dy];
+
+				const id =
+					parsed.id ??
+					makeStableId(
+						'NL',
+						[parsed.primitiveId, parsed.pinNumber ?? '', parsed.pinName ?? '', parsed.net].map((s) => String(s)).join('|'),
+					);
+
+				const ir = {
+					version: 1 as const,
+					units: 'sch' as const,
+					page: { ensure: false },
+					wires: [{ id, net: parsed.net, line }],
+				};
+
+				const applyResult = await bridge.call('schematic.applyIr', ir, 120_000);
+
+				return asJsonText({
+					ok: true,
+					id,
+					net: parsed.net,
+					line,
+					applied: (applyResult as any)?.applied?.wires?.[id],
+					note:
+						'Net Label in JLCEDA Pro is implemented as Wire.NET. Avoid mixing netPorts/netFlags with wires[].net on the same short segment to prevent duplicate net name rendering.',
+				});
 			},
 		},
 		{
@@ -410,6 +774,96 @@ export function createToolRegistry(bridge: WsBridge): Array<ToolDefinition> {
 			run: async (args) => {
 				const parsed = ApplyIrSchema.parse(args);
 				const result = await bridge.call('schematic.applyIr', parsed.ir, 300_000);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.verify_nets',
+			description:
+				'Verify connectivity by parsing document source wire primitives (fallback when EDA netlist export is slow/unavailable).',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					nets: {
+						type: 'array',
+						items: {
+							type: 'object',
+							properties: {
+								name: { type: 'string' },
+								wirePrimitiveIds: { type: 'array', items: { type: 'string' } },
+								points: {
+									type: 'array',
+									items: {
+										type: 'object',
+										properties: {
+											ref: { type: 'string' },
+											x: { type: 'number' },
+											y: { type: 'number' },
+											primitiveId: { type: 'string' },
+											pinNumber: { type: 'string' },
+											pinName: { type: 'string' },
+											allowMany: { type: 'boolean' },
+										},
+										additionalProperties: false,
+									},
+								},
+							},
+							required: ['name', 'points'],
+							additionalProperties: false,
+						},
+					},
+					requireConnected: { type: 'boolean' },
+					maxChars: { type: 'number' },
+					timeoutMs: { type: 'number' },
+				},
+				required: ['nets'],
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = VerifyNetsSchema.parse(args);
+				const result = await verifyNets(bridge, parsed);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.schematic.verify_netlist',
+			description: 'Verify connectivity by reading SCH_Netlist.getNetlist() and checking expected (Net -> Ref.Pin) memberships.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					netlistType: { type: 'string', enum: ['JLCEDA', 'EasyEDA', 'Protel2', 'PADS', 'Allegro', 'DISA'] },
+					timeoutMs: { type: 'number' },
+					maxChars: { type: 'number' },
+					nets: {
+						type: 'array',
+						items: {
+							type: 'object',
+							properties: {
+								name: { type: 'string' },
+								endpoints: {
+									type: 'array',
+									items: {
+										type: 'object',
+										properties: {
+											ref: { type: 'string' },
+											pin: { type: 'string' },
+										},
+										required: ['ref', 'pin'],
+										additionalProperties: false,
+									},
+								},
+							},
+							required: ['name', 'endpoints'],
+							additionalProperties: false,
+						},
+					},
+				},
+				required: ['nets'],
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = VerifyNetlistSchema.parse(args);
+				const result = await verifyNetlist(bridge, parsed);
 				return asJsonText(result);
 			},
 		},

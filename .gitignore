@@ -6,4 +6,4 @@ packages/*/node_modules/
 packages/*/package-lock.json
 npm-debug.log*
 debug.log
-
+.logs/

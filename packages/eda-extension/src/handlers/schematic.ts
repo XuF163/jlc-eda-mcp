@@ -61,6 +61,37 @@ export async function exportNetlistFile(params: unknown): Promise<{ savedTo?: st
 	return { fileName, netlistType, downloadTriggered: true };
 }
 
+export async function getNetlist(params: unknown): Promise<{ netlistType: string; netlist: string; truncated: boolean; totalChars: number }> {
+	await requireSchematicPage();
+
+	const input = params ? asObject(params, 'params') : {};
+	const netlistType = asOptionalString(input.netlistType, 'netlistType') ?? 'JLCEDA';
+	const maxChars = asOptionalNumber(input.maxChars, 'maxChars');
+	const timeoutMs = asOptionalNumber(input.timeoutMs, 'timeoutMs') ?? 30_000;
+
+	const netlistApi = (eda as any)?.sch_Netlist;
+	const getNetlistFn = netlistApi?.getNetlist;
+	if (!netlistApi || typeof getNetlistFn !== 'function') {
+		throw rpcError('NOT_SUPPORTED', 'eda.sch_Netlist.getNetlist is not available in this EDA version');
+	}
+
+	const netlist = String(
+		await Promise.race([
+			Promise.resolve().then(() => getNetlistFn.call(netlistApi, netlistType as any)),
+			new Promise((_, reject) =>
+				setTimeout(() => reject(rpcError('TIMEOUT', `Timed out getting netlist after ${timeoutMs}ms`)), timeoutMs),
+			),
+		]),
+	);
+	const totalChars = netlist.length;
+
+	if (maxChars && Number.isFinite(maxChars) && maxChars > 0 && totalChars > maxChars) {
+		return { netlistType, netlist: netlist.slice(0, Math.floor(maxChars)), truncated: true, totalChars };
+	}
+
+	return { netlistType, netlist, truncated: false, totalChars };
+}
+
 export async function placeDevice(params: unknown): Promise<{ primitiveId: string }> {
 	await requireSchematicPage();
 
@@ -224,4 +255,3 @@ export async function saveSchematic(): Promise<{ ok: boolean }> {
 	const ok = await eda.sch_Document.save();
 	return { ok };
 }
-

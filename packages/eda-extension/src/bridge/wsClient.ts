@@ -13,6 +13,7 @@ type RuntimeState = {
 	connectionState: BridgeStatusSnapshot['connectionState'];
 	transport: BridgeStatusSnapshot['transport'];
 	lastConnectedAt?: number;
+	lastServerRequestAt?: number;
 	lastError?: string;
 	debugLog?: Array<DebugLogEntry>;
 };
@@ -43,6 +44,7 @@ export type BridgeStatusSnapshot = {
 	transport: 'sys_WebSocket' | 'globalWebSocket' | 'none';
 	serverUrl: string;
 	lastConnectedAt?: number;
+	lastServerRequestAt?: number;
 	lastError?: string;
 	stateSource: 'memory' | 'storage';
 	runtimeUpdatedAt?: number;
@@ -50,7 +52,6 @@ export type BridgeStatusSnapshot = {
 
 type RpcHello = {
 	type: 'hello';
-	token?: string;
 	app?: { name?: string; version?: string; edaVersion?: string };
 };
 
@@ -76,13 +77,24 @@ function isRpcRequest(msg: any): msg is RpcRequest {
 export class BridgeClient {
 	#socket: WebSocket | undefined;
 	#lastConnectedAt: number | undefined;
+	#lastServerRequestAt: number | undefined;
 	#lastError: string | undefined;
 	#connectTimer: any | undefined;
+	#handshakeTimer: any | undefined;
+	#handshakeOk = false;
 	#debugLog: Array<DebugLogEntry> = [];
 	#connectionState: BridgeStatusSnapshot['connectionState'] = 'disconnected';
 	#transport: BridgeStatusSnapshot['transport'] = 'none';
 	#registeredUrl: string | undefined;
 	#lastPersistAt = 0;
+
+	#autoEnabled = false;
+	#autoTimer: any | undefined;
+	#autoBackoffMs = 1500;
+	#autoMaxBackoffMs = 30_000;
+	#autoOpts:
+		| { onRequest: (method: string, params: unknown) => Promise<unknown>; onInfo?: (msg: string) => void }
+		| undefined;
 
 	static readonly SYS_WS_ID = 'jlceda_mcp_bridge_ws_v1';
 
@@ -127,6 +139,7 @@ export class BridgeClient {
 				transport: resolvedTransport,
 				serverUrl: loadBridgeConfig().serverUrl,
 				lastConnectedAt: runtime.lastConnectedAt,
+				lastServerRequestAt: runtime.lastServerRequestAt,
 				lastError: runtime.lastError,
 				stateSource: 'storage',
 				runtimeUpdatedAt: runtime.updatedAt,
@@ -140,6 +153,7 @@ export class BridgeClient {
 			transport: this.#transport === 'none' ? inferredTransport : this.#transport,
 			serverUrl: loadBridgeConfig().serverUrl,
 			lastConnectedAt: this.#lastConnectedAt,
+			lastServerRequestAt: this.#lastServerRequestAt,
 			lastError: this.#lastError,
 			stateSource: 'memory',
 		};
@@ -169,16 +183,123 @@ export class BridgeClient {
 			connectionState: this.#connectionState,
 			transport: this.#transport,
 			lastConnectedAt: this.#lastConnectedAt,
+			lastServerRequestAt: this.#lastServerRequestAt,
 			lastError: this.#lastError,
 			debugLog: this.#debugLog.map((e) => ({ ...e })),
 		});
+	}
+
+	startAutoConnect(opts: { onRequest: (method: string, params: unknown) => Promise<unknown>; onInfo?: (msg: string) => void }): void {
+		this.#autoEnabled = true;
+		this.#autoOpts = opts;
+		this.#autoBackoffMs = 1500;
+		this.#scheduleAuto(0);
+	}
+
+	stopAutoConnect(): void {
+		this.#autoEnabled = false;
+		this.#autoOpts = undefined;
+		if (this.#autoTimer) clearTimeout(this.#autoTimer);
+		this.#autoTimer = undefined;
+	}
+
+	#scheduleAuto(ms: number): void {
+		if (!this.#autoEnabled) return;
+		if (this.#autoTimer) clearTimeout(this.#autoTimer);
+		this.#autoTimer = setTimeout(() => this.#autoTick(), ms);
+	}
+
+	#autoTick(): void {
+		if (!this.#autoEnabled) return;
+		const cfg = loadBridgeConfig();
+		if (cfg.autoConnect === false) {
+			this.stopAutoConnect();
+			return;
+		}
+
+		// If connection is stale (no server traffic), drop and retry (SYS_WebSocket has no onclose callback).
+		if (this.#connectionState === 'connected' && this.#lastServerRequestAt) {
+			const age = Date.now() - this.#lastServerRequestAt;
+			if (age > 60_000) {
+				this.#lastError = `No server traffic for ${Math.round(age / 1000)}s; reconnecting...`;
+				this.#pushLog('warn', 'stale connection; reconnecting', { ageMs: age });
+				this.disconnect();
+			}
+		}
+
+		if (this.#connectionState === 'connected') {
+			this.#scheduleAuto(10_000);
+			return;
+		}
+		if (this.#connectionState === 'connecting') {
+			this.#scheduleAuto(2_000);
+			return;
+		}
+
+		const opts = this.#autoOpts;
+		if (!opts) {
+			this.#scheduleAuto(10_000);
+			return;
+		}
+
+		// Silent-ish retry loop: only bubble up "Connected" and actionable errors.
+		this.connect({
+			onRequest: opts.onRequest,
+			onInfo: (msg) => {
+				if (!opts.onInfo) return;
+				if (msg.startsWith('Connected to')) opts.onInfo(msg);
+				if (msg.includes('register failed') || msg.includes('permission')) opts.onInfo(msg);
+			},
+		});
+
+		this.#scheduleAuto(this.#autoBackoffMs);
+		this.#autoBackoffMs = Math.min(Math.floor(this.#autoBackoffMs * 1.6), this.#autoMaxBackoffMs);
+	}
+
+	#clearHandshakeTimer(): void {
+		if (this.#handshakeTimer) clearTimeout(this.#handshakeTimer);
+		this.#handshakeTimer = undefined;
+	}
+
+	#startHandshakeWatchdog(serverUrl: string, opts?: { onInfo?: (msg: string) => void }): void {
+		this.#clearHandshakeTimer();
+		this.#handshakeTimer = setTimeout(() => {
+			if (this.#handshakeOk) return;
+			this.#lastError = `Handshake not confirmed (no server request received). Check server status/logs. (${serverUrl})`;
+			this.#pushLog('error', 'handshake timeout', { url: serverUrl });
+			opts?.onInfo?.(this.#lastError);
+			this.disconnect({ preserveLastError: true });
+		}, 8_000);
+	}
+
+	#markServerTraffic(): void {
+		this.#lastServerRequestAt = Date.now();
+		this.#persistRuntime(false);
 	}
 
 	connect(opts: { onRequest: (method: string, params: unknown) => Promise<unknown>; onInfo?: (msg: string) => void }): void {
 		const cfg = loadBridgeConfig();
 		const connectTimeoutMs = 8_000;
 
-		this.#pushLog('info', 'connect() called', { serverUrl: cfg.serverUrl, hasToken: Boolean(cfg.token) });
+		this.#handshakeOk = false;
+		this.#clearHandshakeTimer();
+		this.#lastServerRequestAt = undefined;
+
+		const runtime = loadRuntimeState();
+		if (runtime && runtime.connectionState !== 'disconnected') {
+			const age = Date.now() - runtime.updatedAt;
+			const trafficAge = runtime.lastServerRequestAt ? Date.now() - runtime.lastServerRequestAt : undefined;
+			// Avoid registering SYS_WebSocket repeatedly across different extension sandboxes.
+			const shouldAssumeAnotherSandboxOwnsConnection =
+				(runtime.connectionState === 'connecting' && age < 20_000) ||
+				(runtime.connectionState === 'connected' && trafficAge !== undefined && trafficAge < 30_000);
+			if (shouldAssumeAnotherSandboxOwnsConnection) {
+				opts.onInfo?.(runtime.connectionState === 'connected' ? 'MCP bridge already connected.' : 'MCP bridge is connecting...');
+				return;
+			}
+		}
+
+		this.#pushLog('info', 'connect() called', { serverUrl: cfg.serverUrl });
 
 		const preferSys = this.#hasSysWebSocket();
 		this.#transport = preferSys ? 'sys_WebSocket' : typeof (globalThis as any).WebSocket === 'function' ? 'globalWebSocket' : 'none';
@@ -239,6 +360,14 @@ export class BridgeClient {
 				}
 
 				if (!isRpcRequest(msg)) return;
+				this.#markServerTraffic();
+				if (!this.#handshakeOk) {
+					this.#handshakeOk = true;
+					this.#clearHandshakeTimer();
+					this.#pushLog('info', 'handshake confirmed (first server request)', { method: msg.method });
+					this.#setState('connected');
+					opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
+				}
 
 				try {
 					const result = await opts.onRequest(msg.method, msg.params);
@@ -257,7 +386,6 @@ export class BridgeClient {
 				if (this.#connectTimer) clearTimeout(this.#connectTimer);
 				this.#connectTimer = undefined;
 				this.#lastConnectedAt = Date.now();
-				this.#setState('connected');
 				this.#pushLog('info', 'sys_WebSocket connected', { url: cfg.serverUrl });
 
 				let edaVersion: string | undefined;
@@ -269,19 +397,20 @@ export class BridgeClient {
 
 				const hello: RpcHello = {
 					type: 'hello',
-					token: cfg.token,
 					app: { name: extensionConfig.name, version: extensionConfig.version, edaVersion },
 				};
 				try {
 					(eda as any).sys_WebSocket.send(BridgeClient.SYS_WS_ID, toJson(hello));
-					this.#pushLog('debug', 'hello sent', { hasToken: Boolean(cfg.token), app: hello.app, transport: 'sys_WebSocket' });
+					this.#pushLog('debug', 'hello sent', { app: hello.app, transport: 'sys_WebSocket' });
 				} catch (err) {
 					const msg = err instanceof Error ? err.message : String(err);
 					this.#lastError = `WebSocket send failed: ${msg}`;
 					this.#pushLog('error', 'hello send failed', { error: msg });
 				}
 
-				opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
+				this.#startHandshakeWatchdog(cfg.serverUrl, opts);
+				// Ensure connected/hello logs are persisted even if state changes quickly.
+				this.#persistRuntime(true);
 			};
 
 			try {
@@ -348,7 +477,6 @@ export class BridgeClient {
 			if (this.#connectTimer) clearTimeout(this.#connectTimer);
 			this.#connectTimer = undefined;
 			this.#lastConnectedAt = Date.now();
-			this.#setState('connected');
 			this.#pushLog('info', 'WebSocket onopen', { url: cfg.serverUrl });
 			let edaVersion: string | undefined;
 			try {
@@ -358,12 +486,12 @@ export class BridgeClient {
 			}
 			const hello: RpcHello = {
 				type: 'hello',
-				token: cfg.token,
 				app: { name: extensionConfig.name, version: extensionConfig.version, edaVersion },
 			};
 			(ws as any).send(toJson(hello));
-			this.#pushLog('debug', 'hello sent', { hasToken: Boolean(cfg.token), app: hello.app });
-			opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
+			this.#pushLog('debug', 'hello sent', { app: hello.app });
+			this.#startHandshakeWatchdog(cfg.serverUrl, opts);
+			this.#persistRuntime(true);
 		};
 
 		this.#socket.onmessage = async (event) => {
@@ -376,6 +504,14 @@ export class BridgeClient {
 			}
 
 			if (!isRpcRequest(msg)) return;
+			this.#markServerTraffic();
+			if (!this.#handshakeOk) {
+				this.#handshakeOk = true;
+				this.#clearHandshakeTimer();
+				this.#pushLog('info', 'handshake confirmed (first server request)', { method: msg.method });
+				this.#setState('connected');
+				opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
+			}
 
 			const ws = this.#socket;
 			if (!ws) return;
@@ -396,6 +532,8 @@ export class BridgeClient {
 		this.#socket.onerror = () => {
 			if (this.#connectTimer) clearTimeout(this.#connectTimer);
 			this.#connectTimer = undefined;
+			this.#clearHandshakeTimer();
+			this.#handshakeOk = false;
 			this.#lastError = `WebSocket error (url ${cfg.serverUrl})`;
 			this.#pushLog('error', 'WebSocket onerror', { url: cfg.serverUrl });
 			opts.onInfo?.(this.#lastError);
@@ -404,6 +542,8 @@ export class BridgeClient {
 		this.#socket.onclose = (ev) => {
 			if (this.#connectTimer) clearTimeout(this.#connectTimer);
 			this.#connectTimer = undefined;
+			this.#clearHandshakeTimer();
+			this.#handshakeOk = false;
 			const reason = (ev as any)?.reason ? String((ev as any).reason) : '';
 			this.#lastError = `Disconnected (code ${(ev as any)?.code ?? 'unknown'}${reason ? `: ${reason}` : ''})`;
 			this.#pushLog('warn', 'WebSocket onclose', { code: (ev as any)?.code, reason, url: cfg.serverUrl });
@@ -413,10 +553,12 @@ export class BridgeClient {
 		};
 	}
 
-	disconnect(opts?: { onInfo?: (msg: string) => void }): void {
+	disconnect(opts?: { onInfo?: (msg: string) => void; preserveLastError?: boolean }): void {
 		const ws = this.#socket;
 		if (this.#connectTimer) clearTimeout(this.#connectTimer);
 		this.#connectTimer = undefined;
+		this.#clearHandshakeTimer();
+		this.#handshakeOk = false;
 		this.#pushLog('info', 'disconnect() called', { hadSocket: Boolean(ws) });
 		if (this.#transport === 'sys_WebSocket') {
 			try {
@@ -427,7 +569,8 @@ export class BridgeClient {
 				this.#pushLog('error', 'SYS_WebSocket.close failed', { error: msg });
 			}
 			this.#setState('disconnected');
-			this.#lastError = undefined;
+			if (!opts?.preserveLastError) this.#lastError = undefined;
+			this.#lastServerRequestAt = undefined;
 			opts?.onInfo?.('Disconnected.');
 			return;
 		}
@@ -450,12 +593,14 @@ export class BridgeClient {
 		}
 
 		this.#socket = undefined;
-		this.#lastError = undefined;
+		if (!opts?.preserveLastError) this.#lastError = undefined;
+		this.#lastServerRequestAt = undefined;
 		this.#setState('disconnected');
 		opts?.onInfo?.('Disconnected.');
 	}
 
 	dispose(): void {
+		this.stopAutoConnect();
 		this.disconnect();
 	}
 }

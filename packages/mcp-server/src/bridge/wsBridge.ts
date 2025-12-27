@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 const HelloMessageSchema = z.object({
 	type: z.literal('hello'),
+	// Token is intentionally ignored (local-only bridge). Kept optional for backward compatibility with older extensions.
 	token: z.string().optional(),
 	app: z
 		.object({
@@ -56,7 +57,6 @@ export type BridgeStatus = {
 };
 
 export class WsBridge {
-	readonly token: string | undefined;
 	readonly listenPort: number;
 
 	#server: WebSocketServer;
@@ -66,10 +66,11 @@ export class WsBridge {
 	#remoteAddress: string | undefined;
 	#pending = new Map<string, PendingCall>();
 	#log: ((line: string) => void) | undefined;
+	#keepAliveTimer: NodeJS.Timeout | undefined;
+	#keepAliveInFlight = false;
 
-	constructor(opts: { port: number; token?: string; log?: (line: string) => void }) {
+	constructor(opts: { port: number; log?: (line: string) => void }) {
 		this.listenPort = opts.port;
-		this.token = opts.token;
 		this.#log = opts.log;
 
 		this.#server = new WebSocketServer({ host: '127.0.0.1', port: opts.port });
@@ -79,7 +80,7 @@ export class WsBridge {
 	getStatus(): BridgeStatus {
 		return {
 			listenPort: this.listenPort,
-			tokenRequired: Boolean(this.token),
+			tokenRequired: false,
 			connected: Boolean(this.#socket),
 			client: this.#socket
 				? {
@@ -118,6 +119,7 @@ export class WsBridge {
 	}
 
 	close(): void {
+		this.#stopKeepAlive();
 		try {
 			this.#socket?.close();
 		} catch {
@@ -126,8 +128,36 @@ export class WsBridge {
 		this.#server.close();
 	}
 
+	#startKeepAlive(): void {
+		this.#stopKeepAlive();
+
+		// Kick off an immediate ping so the extension can confirm handshake.
+		void this.call('ping', undefined, 5_000).catch(() => {
+			// ignore
+		});
+
+		this.#keepAliveTimer = setInterval(() => {
+			if (!this.#socket) return;
+			if (this.#keepAliveInFlight) return;
+			this.#keepAliveInFlight = true;
+
+			void this.call('ping', undefined, 5_000)
+				.catch(() => {
+					// ignore; disconnect/timeout will be handled by ws close or next MCP call
+				})
+				.finally(() => {
+					this.#keepAliveInFlight = false;
+				});
+		}, 15_000);
+	}
+
+	#stopKeepAlive(): void {
+		if (this.#keepAliveTimer) clearInterval(this.#keepAliveTimer);
+		this.#keepAliveTimer = undefined;
+		this.#keepAliveInFlight = false;
+	}
+
 	#handleConnection(ws: WebSocket, remoteAddress?: string | null): void {
-		const tokenRequired = Boolean(this.token);
 		let handshaked = false;
 
 		this.#log?.(`[jlceda-eda-mcp] WS connection from ${remoteAddress ?? 'unknown'} (awaiting hello)`);
@@ -155,15 +185,12 @@ export class WsBridge {
 					return;
 				}
 				const hello = parsed.data;
-				if (tokenRequired && hello.token !== this.token) {
-					ws.close(4003, 'Invalid token');
-					return;
-				}
 
 				clearTimeout(handshakeTimeout);
 				handshaked = true;
 
 				// Replace existing connection (POC: single client)
+				this.#stopKeepAlive();
 				try {
 					this.#socket?.close(4000, 'Replaced by new connection');
 				} catch {
@@ -181,6 +208,7 @@ export class WsBridge {
 					)}`,
 				);
 
+				this.#startKeepAlive();
 				return;
 			}
 
@@ -195,6 +223,7 @@ export class WsBridge {
 			const tag = handshaked ? 'EDA' : 'WS (no-hello)';
 			this.#log?.(`[jlceda-eda-mcp] ${tag} disconnected code=${code}${reasonText ? ` reason=${reasonText}` : ''}`);
 			if (this.#socket === ws) {
+				this.#stopKeepAlive();
 				this.#socket = undefined;
 				this.#clientHello = undefined;
 				this.#connectedAt = undefined;

@@ -98,6 +98,11 @@
 
 ## wires（显式导线）
 
+> 说明：在嘉立创EDA Pro 中，“网络标签（Alt+N）”本质上是导线的 `NET` 属性（网名显示），并不是“网络端口”。  
+> 因此在 IR 里：要放置网络标签请用 `wires[].net`（或 `connections[].net`）；要放置“网络端口”请用 `netPorts`；电源/地符号属于 `netFlags`。  
+> 避免在同一根短线上同时使用 `netPorts/netFlags` + `wires[].net`，否则可能出现重复网名显示。
+> 如果你不想手算引脚坐标，也可以直接用 `jlc.schematic.netlabel.attach_pin` 在指定引脚处拉出带 `NET` 的短导线。
+
 `line` 支持两种形式：
 
 1) 单段折线：`[x1, y1, x2, y2, x3, y3]`

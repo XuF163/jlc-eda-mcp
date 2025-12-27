@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import crypto from 'node:crypto';
 import process from 'node:process';
 
 import { WsBridge } from './bridge/wsBridge.js';
@@ -32,25 +31,14 @@ function parseTimeoutMs(value: string | undefined, defaultMs: number): number {
 
 async function main(): Promise<void> {
 	const port = parsePort(getArgValue('--port') ?? process.env.JLCEDA_MCP_PORT);
-	const token = getArgValue('--token') ?? process.env.JLCEDA_MCP_TOKEN;
-	const effectiveToken = token ?? crypto.randomBytes(16).toString('hex');
-
-	// In POC we always generate a token, but allow empty token for quick testing.
-	const requireToken = (process.env.JLCEDA_MCP_REQUIRE_TOKEN ?? '1') !== '0';
-	const finalToken = requireToken ? effectiveToken : token;
 
 	const selfTest = hasFlag('--self-test') || (process.env.JLCEDA_MCP_SELF_TEST ?? '') === '1';
 	const selfTestTimeoutMs = parseTimeoutMs(getArgValue('--self-test-timeout-ms') ?? process.env.JLCEDA_MCP_SELF_TEST_TIMEOUT_MS, 60_000);
 
-	if (requireToken) {
-		process.stderr.write(`[jlceda-eda-mcp] Bridge token: ${finalToken}\n`);
-		process.stderr.write(`[jlceda-eda-mcp] Start the EDA extension with this token.\n`);
-	}
 	process.stderr.write(`[jlceda-eda-mcp] WebSocket listening on ws://127.0.0.1:${port}\n`);
 
 	const bridge = new WsBridge({
 		port,
-		token: finalToken,
 		log: (line) => process.stderr.write(`${line}\n`),
 	});
 

@@ -9,12 +9,11 @@
 ```json
 {
   "type": "hello",
-  "token": "YOUR_TOKEN",
   "app": { "name": "jlceda-mcp-bridge", "version": "0.0.1" }
 }
 ```
 
-MCP Server 会校验 token（默认要求），不匹配会断开连接。
+说明：当前实现不做 token 校验（本地桥接），旧版扩展若仍发送 `token` 字段会被忽略。
 
 ## 2) RPC Request / Response
 
@@ -43,7 +42,7 @@ Extension -> Server（失败）：
 ## 3) Methods (current)
 
 - `ping`
-- `showMessage`
+- `showMessage`（优先 toast，不再弹出阻塞式弹窗）
 - `getStatus`
 - `getCurrentDocumentInfo`
 - `ensureSchematicPage`

@@ -2,8 +2,20 @@ import { BridgeStatusSnapshot } from '../bridge/wsClient';
 import { asObject, asString, rpcError } from '../bridge/validate';
 import { applySchematicIr } from './applyIr';
 import { captureRenderedAreaImage, ensureSchematicPage, exportDocumentFile, getCurrentDocumentInfo, getDocumentSource } from './document';
+import {
+	clearIndicatorMarkers,
+	clearSelection,
+	crossProbeSelect,
+	findByDesignator,
+	listComponents,
+	listTexts,
+	listWires,
+	selectPrimitives,
+	showIndicatorMarker,
+	zoomToAll,
+} from './inspect';
 import { getDevice, searchDevices } from './library';
-import { connectPins, createWire, exportNetlistFile, getComponentPins, placeDevice, runDrc, saveSchematic } from './schematic';
+import { connectPins, createWire, exportNetlistFile, getComponentPins, getNetlist, placeDevice, runDrc, saveSchematic } from './schematic';
 
 export async function handleRpc(
 	method: string,
@@ -16,8 +28,15 @@ export async function handleRpc(
 		case 'showMessage': {
 			const input = params ? asObject(params, 'params') : {};
 			const message = asString(input.message, 'message');
-			eda.sys_Dialog.showInformationMessage(message, 'MCP');
-			return { shown: true };
+
+			// Best-effort non-blocking notification. Avoid modal dialogs which interrupt workflows.
+			try {
+				(eda as any).sys_Message?.showToastMessage?.(message, 'info', 4);
+				return { shown: true, kind: 'toast' };
+			} catch {
+				// If toast is unavailable, do not fallback to modal dialogs.
+				return { shown: false, kind: 'none' };
+			}
 		}
 		case 'getStatus':
 			return ctx.getStatus();
@@ -33,6 +52,8 @@ export async function handleRpc(
 			return await getDocumentSource(params);
 		case 'exportSchematicNetlistFile':
 			return await exportNetlistFile(params);
+		case 'schematic.getNetlist':
+			return await getNetlist(params);
 		case 'library.searchDevices':
 			return await searchDevices(params);
 		case 'library.getDevice':
@@ -51,6 +72,26 @@ export async function handleRpc(
 			return await saveSchematic();
 		case 'schematic.applyIr':
 			return await applySchematicIr(params);
+		case 'schematic.listComponents':
+			return await listComponents(params);
+		case 'schematic.listWires':
+			return await listWires(params);
+		case 'schematic.listTexts':
+			return await listTexts();
+		case 'schematic.findByDesignator':
+			return await findByDesignator(params);
+		case 'schematic.selectPrimitives':
+			return await selectPrimitives(params);
+		case 'schematic.crossProbeSelect':
+			return await crossProbeSelect(params);
+		case 'schematic.clearSelection':
+			return await clearSelection();
+		case 'schematic.zoomToAll':
+			return await zoomToAll(params);
+		case 'schematic.indicator.show':
+			return await showIndicatorMarker(params);
+		case 'schematic.indicator.clear':
+			return await clearIndicatorMarkers(params);
 		default:
 			throw rpcError('METHOD_NOT_FOUND', `Unknown method: ${method}`);
 	}
