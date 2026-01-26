@@ -10,6 +10,7 @@
 		"packages/*"
 	],
 	"scripts": {
+		"prebuild": "node ./scripts/sync-versions.mjs",
 		"version:check": "node ./scripts/check-versions.mjs",
 		"version:sync": "node ./scripts/sync-versions.mjs",
 		"build:mcp": "npm -w packages/mcp-server run build",

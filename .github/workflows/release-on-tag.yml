@@ -53,6 +53,9 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Sync versions from root package.json
+        run: npm run version:sync
+
       - name: Validate workspace versions match
         run: node ./scripts/check-versions.mjs
 

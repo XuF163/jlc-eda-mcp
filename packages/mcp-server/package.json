@@ -16,7 +16,7 @@
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
 		"dev": "npm run build && node --enable-source-maps dist/cli.js --port 9050",
-		"prepublishOnly": "node ../../scripts/check-versions.mjs",
+		"prepublishOnly": "node ../../scripts/sync-versions.mjs && node ../../scripts/check-versions.mjs",
 		"typecheck": "tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {
