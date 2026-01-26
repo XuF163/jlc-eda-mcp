@@ -7,3 +7,4 @@ packages/*/package-lock.json
 npm-debug.log*
 debug.log
 .logs/
+.ace-tool/

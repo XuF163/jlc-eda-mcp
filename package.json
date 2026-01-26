@@ -1,6 +1,7 @@
 {
-	"name": "jlceda-local-mcp-workspace",
-	"private": true,
+	"name": "jlceda-mcp",
+	"private": false,
+	"version": "0.0.1",
 	"workspaces": [
 		"packages/*"
 	],
