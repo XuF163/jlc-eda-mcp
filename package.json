@@ -1,11 +1,13 @@
 {
 	"name": "jlceda-mcp",
 	"private": false,
-	"version": "0.0.1",
+	"version": "0.0.7",
 	"workspaces": [
 		"packages/*"
 	],
 	"scripts": {
+		"version:check": "node ./scripts/check-versions.mjs",
+		"version:sync": "node ./scripts/sync-versions.mjs",
 		"build:mcp": "npm -w packages/mcp-server run build",
 		"build:ext": "npm -w packages/eda-extension run build",
 		"build": "npm run build:mcp && npm run build:ext",

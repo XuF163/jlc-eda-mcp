@@ -45,6 +45,9 @@ jobs:
             exit 1
           fi
 
+      - name: Validate workspace versions match
+        run: node ./scripts/check-versions.mjs
+
       - name: Build
         run: npm run build
 

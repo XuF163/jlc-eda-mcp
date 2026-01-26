@@ -1,6 +1,6 @@
 {
 	"name": "jlceda-eda-mcp",
-	"version": "0.0.1",
+	"version": "0.0.7",
 	"description": "MCP server that drives JLCEDA Pro local client via an extension bridge",
 	"type": "module",
 	"bin": {
@@ -9,6 +9,7 @@
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
 		"dev": "npm run build && node --enable-source-maps dist/cli.js --port 9050",
+		"prepublishOnly": "node ../../scripts/check-versions.mjs",
 		"typecheck": "tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {
