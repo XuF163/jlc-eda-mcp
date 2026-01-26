@@ -1,69 +1,93 @@
-name: release-on-tag
+name: Release and Publish
 
-"on":
+on:
   push:
-    tags: ['v*']
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Git tag to publish (e.g. v0.0.1). Leave empty when triggered by tag push."
+        required: false
+        default: ""
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
-  release:
+  publish:
     runs-on: ubuntu-latest
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: false
     steps:
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            if [[ -z "${{ inputs.tag }}" ]]; then
+              echo "Missing input 'tag' for workflow_dispatch" >&2
+              exit 1
+            fi
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: Upgrade npm (trusted publishing)
+        run: npm i -g npm@^11.5.1
 
       - name: Install
-        run: npm ci
-
-      - name: Resolve versions
-        shell: bash
-        run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          echo "TAG_VERSION=${TAG_VERSION}" >> "$GITHUB_ENV"
-
-          MCP_VERSION="$(node -p "require('./packages/mcp-server/package.json').version")"
-          echo "MCP_VERSION=${MCP_VERSION}" >> "$GITHUB_ENV"
-
-          EXT_VERSION="$(node -p "require('./packages/eda-extension/extension.json').version")"
-          echo "EXT_VERSION=${EXT_VERSION}" >> "$GITHUB_ENV"
-
-      - name: Validate tag matches MCP version
-        shell: bash
-        run: |
-          if [ "${TAG_VERSION}" != "${MCP_VERSION}" ]; then
-            echo "::error::Tag version v${TAG_VERSION} does not match packages/mcp-server version ${MCP_VERSION}."
-            echo "Tip: bump packages/mcp-server/package.json version, commit, then tag v${MCP_VERSION}."
-            exit 1
-          fi
-
-      - name: Validate workspace versions match
-        run: node ./scripts/check-versions.mjs
+        run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
-      - name: Publish to npm
-        run: npm publish -w packages/mcp-server --access public
+      - name: Verify tag matches package.json version
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Prepare release assets
-        shell: bash
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          mkdir -p artifacts
-          cp "packages/eda-extension/build/dist/jlceda-mcp-bridge_v${EXT_VERSION}.eext" "artifacts/jlceda-mcp-bridge_v${EXT_VERSION}.eext"
+          node - <<'NODE'
+          const pkg = require('./package.json')
+          const tag = (process.env.RELEASE_TAG || '').replace(/^v/, '')
+
+          if (!tag) {
+            console.error('Missing RELEASE_TAG')
+            process.exit(1)
+          }
+
+          if (pkg.version !== tag) {
+            console.error(`package.json version ${pkg.version} != tag ${tag}`)
+            process.exit(1)
+          }
+
+          console.log('Version OK:', pkg.version)
+          NODE
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.tag.outputs.tag }}
           generate_release_notes: true
-          files: artifacts/*
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance
