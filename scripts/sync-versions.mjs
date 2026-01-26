@@ -30,9 +30,17 @@ async function replaceVersionInJsonFile(path, nextVersion) {
 
 const rootPkgPath = new URL('../package.json', import.meta.url);
 const mcpPkgPath = new URL('../packages/mcp-server/package.json', import.meta.url);
+const edaExtManifestPath = new URL('../packages/eda-extension/extension.json', import.meta.url);
+const edaExtPkgPath = new URL('../packages/eda-extension/package.json', import.meta.url);
 
 const mcpPkg = await readJson(mcpPkgPath);
 const mcpVersion = assertString(mcpPkg.version, 'packages/mcp-server package.json version');
 
 await replaceVersionInJsonFile(rootPkgPath, mcpVersion);
 process.stdout.write(`Synced root package.json version -> ${mcpVersion}\n`);
+
+await replaceVersionInJsonFile(edaExtManifestPath, mcpVersion);
+process.stdout.write(`Synced packages/eda-extension/extension.json version -> ${mcpVersion}\n`);
+
+await replaceVersionInJsonFile(edaExtPkgPath, mcpVersion);
+process.stdout.write(`Synced packages/eda-extension/package.json version -> ${mcpVersion}\n`);

@@ -53,8 +53,8 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Validate workspace versions match
+        run: node ./scripts/check-versions.mjs
 
       - name: Verify tag matches package.json version
         env:
@@ -77,11 +77,29 @@ jobs:
           console.log('Version OK:', pkg.version)
           NODE
 
-      - name: Create GitHub Release
+      - name: Build
+        run: npm run build
+
+      - name: Prepare EDA extension asset
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./packages/eda-extension/extension.json').version")"
+          ASSET="jlceda-mcp-bridge_v${VERSION}.eext"
+
+          mkdir -p artifacts
+          cp "packages/eda-extension/build/dist/${ASSET}" "artifacts/${ASSET}"
+
+          echo "EEXT_ASSET=artifacts/${ASSET}" >> "$GITHUB_ENV"
+          echo "Built: artifacts/${ASSET}"
+
+      - name: Publish MCP server to npm
+        working-directory: packages/mcp-server
+        run: npm publish --access public --provenance
+
+      - name: Create GitHub Release (EDA extension)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           generate_release_notes: true
-
-      - name: Publish to npm
-        run: npm publish --access public --provenance
+          files: ${{ env.EEXT_ASSET }}
+          fail_on_unmatched_files: true

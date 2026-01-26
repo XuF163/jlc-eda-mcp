@@ -7,6 +7,9 @@
 		"type": "git",
 		"url": "https://github.com/XuF163/jlc-eda-mcp"
 	},
+	"files": [
+		"dist"
+	],
 	"bin": {
 		"jlceda-eda-mcp": "dist/cli.js"
 	},
