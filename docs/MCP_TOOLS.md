@@ -8,6 +8,15 @@
 - `jlc.bridge.ping`：连通性检查
 - `jlc.bridge.show_message`：在 EDA 内显示提示（优先 toast；不再弹出阻塞式弹窗）
 
+## 高级 / 全量 EDA API（危险）
+
+> 这些工具允许通过字符串路径直接访问 `globalThis.eda` 的任意 API（包括 `sys_*` 级别能力）。
+> 它们绕过了“为每个能力单独写 wrapper tool”的设计，请谨慎使用。
+
+- `jlc.eda.invoke`：按路径调用任意 `eda.*` 方法（例如 `sch_Document.save`）
+- `jlc.eda.get`：按路径读取任意 `eda.*` 值
+- `jlc.eda.keys`：列出 `eda`（或子路径）上的键名，便于探索 API
+
 ## 文档 / 导出
 
 - `jlc.document.current`：当前焦点文档信息（documentType/uuid/tabId）

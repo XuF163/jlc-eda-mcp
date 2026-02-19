@@ -59,3 +59,6 @@ Extension -> Server（失败）：
 - `schematic.drc`
 - `schematic.save`
 - `schematic.applyIr`
+- `eda.invoke`（高级/危险：按路径调用任意 `eda.*` 方法）
+- `eda.get`（高级/危险：按路径读取任意 `eda.*` 值）
+- `eda.keys`（高级/危险：按路径列出 `eda.*` 键）

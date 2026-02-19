@@ -28,6 +28,41 @@ function asJsonText(value: unknown): ToolHandlerResult {
 
 const EmptySchema = z.object({});
 
+/**
+ * Pass-through exposure for the full JLCEDA Pro extension API (`globalThis.eda`).
+ *
+ * This is intentionally generic so we don't have to maintain 1:1 wrappers for hundreds of SDK methods.
+ * It is also intentionally labeled as "advanced/unsafe": it can reach powerful `sys_*` APIs.
+ */
+const JsonSafeSchema = z
+	.object({
+		maxDepth: z.number().int().positive().optional(),
+		maxArrayLength: z.number().int().positive().optional(),
+		maxObjectKeys: z.number().int().positive().optional(),
+		maxStringLength: z.number().int().positive().optional(),
+	})
+	.optional();
+
+const EdaInvokeSchema = z.object({
+	path: z.string().min(1),
+	args: z.array(z.unknown()).optional(),
+	arg: z.unknown().optional(),
+	jsonSafe: JsonSafeSchema,
+	timeoutMs: z.number().int().positive().max(300_000).optional(),
+});
+
+const EdaGetSchema = z.object({
+	path: z.string().min(1),
+	jsonSafe: JsonSafeSchema,
+	timeoutMs: z.number().int().positive().max(300_000).optional(),
+});
+
+const EdaKeysSchema = z.object({
+	path: z.string().min(1).optional(),
+	jsonSafe: JsonSafeSchema,
+	timeoutMs: z.number().int().positive().max(300_000).optional(),
+});
+
 const CaptureRenderedAreaSchema = z.object({
 	tabId: z.string().min(1).optional(),
 	zoomToAll: z.boolean().optional(),
@@ -231,6 +266,102 @@ export function createToolRegistry(bridge: WsBridge): Array<ToolDefinition> {
 				const parsed = z.object({ message: z.string().min(1) }).parse(args);
 				const result = await bridge.call('showMessage', { message: parsed.message }, 10_000);
 				return asJsonText({ ok: true, result });
+			},
+		},
+
+		// --- Advanced: full EDA API passthrough (unsafe) ---
+		{
+			name: 'jlc.eda.invoke',
+			description:
+				'Invoke ANY JLCEDA Pro extension API method via dotted path on global `eda` (advanced/unsafe). Example path: "sch_Document.save".',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					path: { type: 'string' },
+					args: { type: 'array', items: {} },
+					arg: {},
+					jsonSafe: {
+						type: 'object',
+						properties: {
+							maxDepth: { type: 'number' },
+							maxArrayLength: { type: 'number' },
+							maxObjectKeys: { type: 'number' },
+							maxStringLength: { type: 'number' },
+						},
+						additionalProperties: false,
+					},
+					timeoutMs: { type: 'number' },
+				},
+				required: ['path'],
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = EdaInvokeSchema.parse(args);
+				const timeoutMs = parsed.timeoutMs ?? 60_000;
+				const result = await bridge.call(
+					'eda.invoke',
+					{ path: parsed.path, args: parsed.args, arg: parsed.arg, jsonSafe: parsed.jsonSafe },
+					timeoutMs,
+				);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.eda.get',
+			description:
+				'Get ANY value from global `eda` via dotted path (advanced/unsafe). Example path: "sys_Environment.getEditorCurrentVersion".',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					path: { type: 'string' },
+					jsonSafe: {
+						type: 'object',
+						properties: {
+							maxDepth: { type: 'number' },
+							maxArrayLength: { type: 'number' },
+							maxObjectKeys: { type: 'number' },
+							maxStringLength: { type: 'number' },
+						},
+						additionalProperties: false,
+					},
+					timeoutMs: { type: 'number' },
+				},
+				required: ['path'],
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = EdaGetSchema.parse(args);
+				const timeoutMs = parsed.timeoutMs ?? 30_000;
+				const result = await bridge.call('eda.get', { path: parsed.path, jsonSafe: parsed.jsonSafe }, timeoutMs);
+				return asJsonText(result);
+			},
+		},
+		{
+			name: 'jlc.eda.keys',
+			description: 'List keys on global `eda` or on a sub-path (advanced/unsafe). Example path: "sch_Document".',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					path: { type: 'string' },
+					jsonSafe: {
+						type: 'object',
+						properties: {
+							maxDepth: { type: 'number' },
+							maxArrayLength: { type: 'number' },
+							maxObjectKeys: { type: 'number' },
+							maxStringLength: { type: 'number' },
+						},
+						additionalProperties: false,
+					},
+					timeoutMs: { type: 'number' },
+				},
+				additionalProperties: false,
+			},
+			run: async (args) => {
+				const parsed = EdaKeysSchema.parse(args);
+				const timeoutMs = parsed.timeoutMs ?? 30_000;
+				const result = await bridge.call('eda.keys', { path: parsed.path, jsonSafe: parsed.jsonSafe }, timeoutMs);
+				return asJsonText(result);
 			},
 		},
 

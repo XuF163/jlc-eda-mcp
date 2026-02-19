@@ -16,6 +16,7 @@ import {
 } from './inspect';
 import { getDevice, searchDevices } from './library';
 import { connectPins, createWire, exportNetlistFile, getComponentPins, getNetlist, placeDevice, runDrc, saveSchematic } from './schematic';
+import { edaGet, edaInvoke, edaKeys } from './edaApi';
 
 export async function handleRpc(
 	method: string,
@@ -92,6 +93,16 @@ export async function handleRpc(
 			return await showIndicatorMarker(params);
 		case 'schematic.indicator.clear':
 			return await clearIndicatorMarkers(params);
+
+		// Full EDA Pro API exposure (advanced):
+		// - Allow MCP clients to invoke any `globalThis.eda.*` method by path.
+		// - Use with care: this bypasses the usual "explicit tool wrapper" design.
+		case 'eda.invoke':
+			return await edaInvoke(params);
+		case 'eda.get':
+			return await edaGet(params);
+		case 'eda.keys':
+			return await edaKeys(params);
 		default:
 			throw rpcError('METHOD_NOT_FOUND', `Unknown method: ${method}`);
 	}
