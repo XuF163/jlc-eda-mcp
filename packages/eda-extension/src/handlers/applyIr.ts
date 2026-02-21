@@ -503,18 +503,20 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 			bump();
 		}
 
-		// Wires (upsert)
-		for (const w of ir.wires) {
-			const existing = map.wires[w.id];
-			const line = mapLine(w.line as any, units) as any;
+			// Wires (upsert)
+			for (const w of ir.wires) {
+				const existing = map.wires[w.id];
+				const line = mapLine(w.line as any, units) as any;
 
-			if (existing) {
-				try {
-					const updated = await eda.sch_PrimitiveWire.modify(existing.primitiveId, { line, net: w.net });
-					if (updated) {
-						applied.wires[w.id] = { primitiveId: existing.primitiveId, action: 'updated' };
-						bump();
-						continue;
+				if (existing) {
+					try {
+						const property: any = { line };
+						if (w.net !== undefined) property.net = w.net;
+						const updated = await eda.sch_PrimitiveWire.modify(existing.primitiveId, property);
+						if (updated) {
+							applied.wires[w.id] = { primitiveId: existing.primitiveId, action: 'updated' };
+							bump();
+							continue;
 					}
 				} catch {
 					// ignore
@@ -527,13 +529,14 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 				} catch {
 					// ignore
 				}
-			}
+				}
 
-			const primitive = await eda.sch_PrimitiveWire.create(line, w.net);
-			if (!primitive) throw rpcError('CREATE_FAILED', `Failed to create wire ${w.id}`);
-			const primitiveId = primitive.getState_PrimitiveId();
-			map.wires[w.id] = { primitiveId };
-			applied.wires[w.id] = { primitiveId, action: existing ? 'replaced' : 'created' };
+				const primitive =
+					w.net !== undefined ? await eda.sch_PrimitiveWire.create(line, w.net) : await eda.sch_PrimitiveWire.create(line);
+				if (!primitive) throw rpcError('CREATE_FAILED', `Failed to create wire ${w.id}`);
+				const primitiveId = primitive.getState_PrimitiveId();
+				map.wires[w.id] = { primitiveId };
+				applied.wires[w.id] = { primitiveId, action: existing ? 'replaced' : 'created' };
 			bump();
 		}
 
@@ -570,14 +573,16 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 				line = [x1, y1, midX, y1, midX, y2, x2, y2];
 			}
 
-			const existing = map.connections[conn.id];
-			if (existing) {
-				try {
-					const updated = await eda.sch_PrimitiveWire.modify(existing.primitiveId, { line, net: conn.net });
-					if (updated) {
-						applied.connections[conn.id] = { primitiveId: existing.primitiveId, action: 'updated' };
-						bump();
-						continue;
+				const existing = map.connections[conn.id];
+				if (existing) {
+					try {
+						const property: any = { line };
+						if (conn.net !== undefined) property.net = conn.net;
+						const updated = await eda.sch_PrimitiveWire.modify(existing.primitiveId, property);
+						if (updated) {
+							applied.connections[conn.id] = { primitiveId: existing.primitiveId, action: 'updated' };
+							bump();
+							continue;
 					}
 				} catch {
 					// ignore
@@ -590,13 +595,14 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 				} catch {
 					// ignore
 				}
-			}
+				}
 
-			const wire = await eda.sch_PrimitiveWire.create(line, conn.net);
-			if (!wire) throw rpcError('WIRE_CREATE_FAILED', `Failed to create connection wire ${conn.id}`);
-			const primitiveId = wire.getState_PrimitiveId();
-			map.connections[conn.id] = { primitiveId };
-			applied.connections[conn.id] = { primitiveId, action: existing ? 'replaced' : 'created' };
+				const wire =
+					conn.net !== undefined ? await eda.sch_PrimitiveWire.create(line, conn.net) : await eda.sch_PrimitiveWire.create(line);
+				if (!wire) throw rpcError('WIRE_CREATE_FAILED', `Failed to create connection wire ${conn.id}`);
+				const primitiveId = wire.getState_PrimitiveId();
+				map.connections[conn.id] = { primitiveId };
+				applied.connections[conn.id] = { primitiveId, action: existing ? 'replaced' : 'created' };
 			bump();
 		}
 

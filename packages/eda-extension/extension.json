@@ -3,7 +3,7 @@
 	"uuid": "eee9f29013dd4ca48309a1e78447f79b",
 	"displayName": "JLCEDA MCP Bridge",
 	"description": "Bridge JLCEDA Pro local client to an MCP server (WebSocket).",
-	"version": "0.0.11",
+	"version": "0.0.12",
 	"publisher": "local-dev",
 	"engines": {
 		"eda": "^3.0"
@@ -23,7 +23,10 @@
 	},
 	"homepage": "https://prodocs.lceda.cn/cn/api/guide/",
 	"bugs": "https://prodocs.lceda.cn/cn/api/guide/error-handling.html",
-	"activationEvents": {},
+	"activationEvents": {
+		"onStartupFinished": true,
+		"onEditorSchematic": true
+	},
 	"entry": "./dist/index",
 	"dependentExtensions": {},
 	"headerMenus": {
@@ -32,16 +35,6 @@
 				"id": "mcp_bridge_home",
 				"title": "MCP Bridge",
 				"menuItems": [
-					{
-						"id": "mcp_bridge_connect_home",
-						"title": "Connect",
-						"registerFn": "mcpConnect"
-					},
-					{
-						"id": "mcp_bridge_disconnect_home",
-						"title": "Disconnect",
-						"registerFn": "mcpDisconnect"
-					},
 					{
 						"id": "mcp_bridge_status_home",
 						"title": "Status",
@@ -65,16 +58,6 @@
 				"id": "mcp_bridge_sch",
 				"title": "MCP Bridge",
 				"menuItems": [
-					{
-						"id": "mcp_bridge_connect_sch",
-						"title": "Connect",
-						"registerFn": "mcpConnect"
-					},
-					{
-						"id": "mcp_bridge_disconnect_sch",
-						"title": "Disconnect",
-						"registerFn": "mcpDisconnect"
-					},
 					{
 						"id": "mcp_bridge_status_sch",
 						"title": "Status",

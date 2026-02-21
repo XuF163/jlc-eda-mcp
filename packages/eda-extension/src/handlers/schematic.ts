@@ -166,8 +166,8 @@ function findPin(pins: Array<any>, selector: { pinNumber?: string; pinName?: str
 	throw rpcError('PIN_NOT_FOUND', 'Pin not found (provide pinNumber or pinName)');
 }
 
-export async function connectPins(params: unknown): Promise<{ wirePrimitiveId: string; line: Array<number> }> {
-	await requireSchematicPage();
+	export async function connectPins(params: unknown): Promise<{ wirePrimitiveId: string; line: Array<number> }> {
+		await requireSchematicPage();
 
 	const input = params ? asObject(params, 'params') : {};
 	const fromPrimitiveId = asString(input.fromPrimitiveId, 'fromPrimitiveId');
@@ -193,22 +193,23 @@ export async function connectPins(params: unknown): Promise<{ wirePrimitiveId: s
 	const x2 = toPin.getState_X();
 	const y2 = toPin.getState_Y();
 
-	let line: Array<number>;
-	if (style === 'straight') {
-		line = [x1, y1, x2, y2];
-	} else {
-		const mx = midX ?? (x1 + x2) / 2;
-		line = [x1, y1, mx, y1, mx, y2, x2, y2];
+		let line: Array<number>;
+		if (style === 'straight') {
+			line = [x1, y1, x2, y2];
+		} else {
+			const mx = midX ?? (x1 + x2) / 2;
+			line = [x1, y1, mx, y1, mx, y2, x2, y2];
+		}
+
+		const netName = typeof net === 'string' && net.trim() ? net.trim() : undefined;
+		const wire = netName ? await eda.sch_PrimitiveWire.create(line, netName) : await eda.sch_PrimitiveWire.create(line);
+		if (!wire) throw rpcError('WIRE_CREATE_FAILED', 'Failed to create wire');
+
+		return { wirePrimitiveId: wire.getState_PrimitiveId(), line };
 	}
 
-	const wire = await eda.sch_PrimitiveWire.create(line, net);
-	if (!wire) throw rpcError('WIRE_CREATE_FAILED', 'Failed to create wire');
-
-	return { wirePrimitiveId: wire.getState_PrimitiveId(), line };
-}
-
-export async function createWire(params: unknown): Promise<{ wirePrimitiveId: string }> {
-	await requireSchematicPage();
+	export async function createWire(params: unknown): Promise<{ wirePrimitiveId: string }> {
+		await requireSchematicPage();
 
 	const input = params ? asObject(params, 'params') : {};
 	const line = input.line;
@@ -225,19 +226,22 @@ export async function createWire(params: unknown): Promise<{ wirePrimitiveId: st
 		return seg as Array<number>;
 	};
 
-	let normalized: Array<number> | Array<Array<number>>;
-	if (line.length === 0) throw rpcError('INVALID_PARAMS', 'Line must not be empty');
-	if (typeof line[0] === 'number') {
-		normalized = normalizeSegment(line);
-	} else {
-		normalized = (line as Array<any>).map(normalizeSegment);
+		let normalized: Array<number> | Array<Array<number>>;
+		if (line.length === 0) throw rpcError('INVALID_PARAMS', 'Line must not be empty');
+		if (typeof line[0] === 'number') {
+			normalized = normalizeSegment(line);
+		} else {
+			normalized = (line as Array<any>).map(normalizeSegment);
+		}
+
+		const netName = typeof net === 'string' && net.trim() ? net.trim() : undefined;
+		const wire = netName
+			? await eda.sch_PrimitiveWire.create(normalized as any, netName)
+			: await eda.sch_PrimitiveWire.create(normalized as any);
+		if (!wire) throw rpcError('WIRE_CREATE_FAILED', 'Failed to create wire');
+
+		return { wirePrimitiveId: wire.getState_PrimitiveId() };
 	}
-
-	const wire = await eda.sch_PrimitiveWire.create(normalized as any, net);
-	if (!wire) throw rpcError('WIRE_CREATE_FAILED', 'Failed to create wire');
-
-	return { wirePrimitiveId: wire.getState_PrimitiveId() };
-}
 
 export async function runDrc(params: unknown): Promise<{ ok: boolean }> {
 	await requireSchematicPage();

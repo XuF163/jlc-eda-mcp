@@ -20,6 +20,14 @@ type RuntimeState = {
 
 const RUNTIME_KEY = 'jlceda_mcp_bridge_runtime_v1';
 
+// Auto-reconnect tuning:
+// - MCP server keepalive is ~15s (see mcp-server WsBridge).
+// - SYS_WebSocket has no reliable close callback, so we treat lack of server traffic as a disconnect signal.
+const AUTO_BASE_BACKOFF_MS = 1500;
+const AUTO_MAX_BACKOFF_MS = 10_000;
+const AUTO_CONNECTED_POLL_MS = 5_000;
+const AUTO_STALE_TRAFFIC_MS = 25_000;
+
 function loadRuntimeState(): RuntimeState | undefined {
 	try {
 		return (eda as any)?.sys_Storage?.getExtensionUserConfig?.(RUNTIME_KEY) as any;
@@ -90,8 +98,8 @@ export class BridgeClient {
 
 	#autoEnabled = false;
 	#autoTimer: any | undefined;
-	#autoBackoffMs = 1500;
-	#autoMaxBackoffMs = 30_000;
+	#autoBackoffMs = AUTO_BASE_BACKOFF_MS;
+	#autoMaxBackoffMs = AUTO_MAX_BACKOFF_MS;
 	#autoOpts:
 		| { onRequest: (method: string, params: unknown) => Promise<unknown>; onInfo?: (msg: string) => void }
 		| undefined;
@@ -192,8 +200,11 @@ export class BridgeClient {
 	startAutoConnect(opts: { onRequest: (method: string, params: unknown) => Promise<unknown>; onInfo?: (msg: string) => void }): void {
 		this.#autoEnabled = true;
 		this.#autoOpts = opts;
-		this.#autoBackoffMs = 1500;
-		this.#scheduleAuto(0);
+		this.#autoBackoffMs = AUTO_BASE_BACKOFF_MS;
+		if (this.#autoTimer) clearTimeout(this.#autoTimer);
+		this.#autoTimer = undefined;
+		// Start immediately (avoid relying on timers for the very first attempt).
+		this.#autoTick();
 	}
 
 	stopAutoConnect(): void {
@@ -211,24 +222,20 @@ export class BridgeClient {
 
 	#autoTick(): void {
 		if (!this.#autoEnabled) return;
-		const cfg = loadBridgeConfig();
-		if (cfg.autoConnect === false) {
-			this.stopAutoConnect();
-			return;
-		}
 
 		// If connection is stale (no server traffic), drop and retry (SYS_WebSocket has no onclose callback).
 		if (this.#connectionState === 'connected' && this.#lastServerRequestAt) {
 			const age = Date.now() - this.#lastServerRequestAt;
-			if (age > 60_000) {
+			if (age > AUTO_STALE_TRAFFIC_MS) {
 				this.#lastError = `No server traffic for ${Math.round(age / 1000)}s; reconnecting...`;
 				this.#pushLog('warn', 'stale connection; reconnecting', { ageMs: age });
+				this.#autoBackoffMs = AUTO_BASE_BACKOFF_MS;
 				this.disconnect();
 			}
 		}
 
 		if (this.#connectionState === 'connected') {
-			this.#scheduleAuto(10_000);
+			this.#scheduleAuto(AUTO_CONNECTED_POLL_MS);
 			return;
 		}
 		if (this.#connectionState === 'connecting') {
@@ -281,23 +288,23 @@ export class BridgeClient {
 		const cfg = loadBridgeConfig();
 		const connectTimeoutMs = 8_000;
 
-		this.#handshakeOk = false;
-		this.#clearHandshakeTimer();
-		this.#lastServerRequestAt = undefined;
+			this.#handshakeOk = false;
+			this.#clearHandshakeTimer();
+			this.#lastServerRequestAt = undefined;
 
-		const runtime = loadRuntimeState();
-		if (runtime && runtime.connectionState !== 'disconnected') {
-			const age = Date.now() - runtime.updatedAt;
-			const trafficAge = runtime.lastServerRequestAt ? Date.now() - runtime.lastServerRequestAt : undefined;
-			// Avoid registering SYS_WebSocket repeatedly across different extension sandboxes.
-			const shouldAssumeAnotherSandboxOwnsConnection =
-				(runtime.connectionState === 'connecting' && age < 20_000) ||
-				(runtime.connectionState === 'connected' && trafficAge !== undefined && trafficAge < 30_000);
-			if (shouldAssumeAnotherSandboxOwnsConnection) {
-				opts.onInfo?.(runtime.connectionState === 'connected' ? 'MCP bridge already connected.' : 'MCP bridge is connecting...');
-				return;
+			const runtime = loadRuntimeState();
+			if (runtime && runtime.connectionState !== 'disconnected') {
+				const age = Date.now() - runtime.updatedAt;
+				const trafficAge = runtime.lastServerRequestAt ? Date.now() - runtime.lastServerRequestAt : undefined;
+				// Avoid registering SYS_WebSocket repeatedly across different extension sandboxes.
+				const shouldAssumeAnotherSandboxOwnsConnection =
+					(runtime.connectionState === 'connecting' && age < 12_000) ||
+					(runtime.connectionState === 'connected' && trafficAge !== undefined && trafficAge < 20_000);
+				if (shouldAssumeAnotherSandboxOwnsConnection) {
+					opts.onInfo?.(runtime.connectionState === 'connected' ? 'MCP bridge already connected.' : 'MCP bridge is connecting...');
+					return;
+				}
 			}
-		}
 
 		this.#pushLog('info', 'connect() called', { serverUrl: cfg.serverUrl });
 
@@ -361,12 +368,13 @@ export class BridgeClient {
 
 				if (!isRpcRequest(msg)) return;
 				this.#markServerTraffic();
-				if (!this.#handshakeOk) {
-					this.#handshakeOk = true;
-					this.#clearHandshakeTimer();
-					this.#pushLog('info', 'handshake confirmed (first server request)', { method: msg.method });
-					this.#setState('connected');
-					opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
+					if (!this.#handshakeOk) {
+						this.#handshakeOk = true;
+						this.#autoBackoffMs = AUTO_BASE_BACKOFF_MS;
+						this.#clearHandshakeTimer();
+						this.#pushLog('info', 'handshake confirmed (first server request)', { method: msg.method });
+						this.#setState('connected');
+						opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
 				}
 
 				try {
@@ -505,13 +513,14 @@ export class BridgeClient {
 
 			if (!isRpcRequest(msg)) return;
 			this.#markServerTraffic();
-			if (!this.#handshakeOk) {
-				this.#handshakeOk = true;
-				this.#clearHandshakeTimer();
-				this.#pushLog('info', 'handshake confirmed (first server request)', { method: msg.method });
-				this.#setState('connected');
-				opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
-			}
+				if (!this.#handshakeOk) {
+					this.#handshakeOk = true;
+					this.#autoBackoffMs = AUTO_BASE_BACKOFF_MS;
+					this.#clearHandshakeTimer();
+					this.#pushLog('info', 'handshake confirmed (first server request)', { method: msg.method });
+					this.#setState('connected');
+					opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
+				}
 
 			const ws = this.#socket;
 			if (!ws) return;
