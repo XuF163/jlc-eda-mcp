@@ -27,6 +27,16 @@ node packages/mcp-server/dist/cli.js --port 9050
 
 说明：**监听端口的是 MCP Server（本仓库的 `packages/mcp-server`）**，EDA 扩展自身只是 WebSocket 客户端，无法在 EDA 进程内直接打开一个本地 TCP 端口进行监听。
 
+### （可选）启用本地 HTTP REST（给 curl/skills 用）
+
+如果你希望 **绕过 MCP tools（stdio）**，直接用 `curl` 调用本机 REST：
+
+```bash
+node packages/mcp-server/dist/cli.js --port 9050 --http --no-mcp
+```
+
+默认监听：`http://127.0.0.1:9151`（接口：`GET /v1/status`、`GET /v1/tools`、`POST /v1/tools/call`、`POST /v1/rpc`）。
+
 ## 自测（推荐）
 
 如果你暂时没有 MCP 客户端（例如只是在本地开发/调试），可以用自测模式验证端到端链路（需要你在 EDA 里点一次 `MCP Bridge -> Connect`）：
@@ -54,7 +64,7 @@ npm -w packages/eda-extension run build
 
 生成的扩展包在：
 
-- `packages/eda-extension/build/dist/jlceda-mcp-bridge_v0.0.6.eext`
+- `packages/eda-extension/build/dist/jlceda-mcp-bridge_v0.0.12.eext`
 
 在嘉立创EDA 专业版客户端中安装该 `.eext`。
 
@@ -64,8 +74,7 @@ npm -w packages/eda-extension run build
 
 - `MCP Bridge` -> `Configure...`：填写
   - WebSocket URL：`ws://127.0.0.1:9050`
-- （推荐）保持 `Auto-connect` 为 `ON`，这样 EDA 启动后会自动尝试连接服务端
-- 如需手动操作：`MCP Bridge` -> `Connect` / `Disconnect`
+- 新版扩展默认 **自动连接**（无需手动点 `Connect`；必要时仍可用 `Connect/Disconnect` 强制触发）
 
 若顶部菜单没有出现 `MCP Bridge`，请检查：
 

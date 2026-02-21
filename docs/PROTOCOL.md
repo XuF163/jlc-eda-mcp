@@ -9,7 +9,7 @@
 ```json
 {
   "type": "hello",
-  "app": { "name": "jlceda-mcp-bridge", "version": "0.0.1" }
+  "app": { "name": "jlceda-mcp-bridge", "version": "0.0.12", "edaVersion": "3.x.y" }
 }
 ```
 
@@ -50,6 +50,7 @@ Extension -> Server（失败）：
 - `exportDocumentFile`
 - `getDocumentSource`
 - `exportSchematicNetlistFile`
+- `schematic.getNetlist`
 - `library.searchDevices`
 - `library.getDevice`
 - `schematic.placeDevice`
@@ -59,6 +60,16 @@ Extension -> Server（失败）：
 - `schematic.drc`
 - `schematic.save`
 - `schematic.applyIr`
+- `schematic.listComponents`
+- `schematic.listWires`
+- `schematic.listTexts`
+- `schematic.findByDesignator`
+- `schematic.selectPrimitives`
+- `schematic.crossProbeSelect`
+- `schematic.clearSelection`
+- `schematic.zoomToAll`
+- `schematic.indicator.show`
+- `schematic.indicator.clear`
 - `eda.invoke`（高级/危险：按路径调用任意 `eda.*` 方法）
 - `eda.get`（高级/危险：按路径读取任意 `eda.*` 值）
 - `eda.keys`（高级/危险：按路径列出 `eda.*` 键）
