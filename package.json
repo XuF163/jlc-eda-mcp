@@ -1,7 +1,7 @@
 {
 	"name": "jlceda-mcp",
 	"private": false,
-	"version": "0.0.11",
+	"version": "0.0.13",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/XuF163/jlc-eda-mcp"
