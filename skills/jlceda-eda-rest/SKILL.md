@@ -59,3 +59,30 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 
 - IR 规范见：`jlc-eda-mcp/docs/SCHEMATIC_IR.md`
 - 扩展侧实现：`schematic.applyIr`（会维护 id->primitiveId 映射，便于增量更新）
+
+## 识别用户“选区”（原理图）
+
+EDA Pro 的 API 没看到直接暴露“拖拽框选矩形”的坐标，但可以用 **已选中图元 → BBox** 来表示用户选区。
+
+1) 读取用户当前选中的图元 ID：
+
+```bash
+curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
+  -H 'content-type: application/json' \
+  -d '{ "name": "jlc.eda.invoke", "arguments": { "path": "sch_SelectControl.getAllSelectedPrimitives_PrimitiveId" } }'
+```
+
+2) 计算这些图元的包围盒（BBox）：
+
+```bash
+curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
+  -H 'content-type: application/json' \
+  -d '{ "name": "jlc.eda.invoke", "arguments": { "path": "sch_Primitive.getPrimitivesBBox", "args": [ ["PRIMITIVE_ID_1","PRIMITIVE_ID_2"] ] } }'
+```
+
+> 把上一步返回的 primitiveIds 填到 `args[0]` 里即可，返回值形如 `{minX,minY,maxX,maxY}`。
+
+补充能力：
+
+- 读取鼠标在画布坐标：`sch_SelectControl.getCurrentMousePosition`
+- 获取“适应选中”的区域（会缩放视图）：`dmt_EditorControl.zoomToSelectedPrimitives`
