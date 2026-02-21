@@ -250,24 +250,31 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 			(deleteIds?.wires?.length ?? 0) +
 			(deleteIds?.connections?.length ?? 0);
 
-		const totalSteps =
-			deleteCount +
-			ir.components.length +
-			ir.netFlags.length +
+			const totalSteps =
+				deleteCount +
+				ir.components.length +
+				ir.netFlags.length +
 			ir.netPorts.length +
 			ir.texts.length +
 			ir.wires.length +
 			ir.connections.length +
 			(ir.post?.drc ? 1 : 0) +
-			(ir.post?.save ? 1 : 0) +
-			(ir.post?.capturePng ? 1 : 0);
-		let doneSteps = 0;
-		const bump = () => {
-			doneSteps += 1;
-			if (!totalSteps) return;
-			const pct = Math.min(99, Math.floor((doneSteps / totalSteps) * 100));
-			eda.sys_LoadingAndProgressBar.showProgressBar(pct, 'MCP: Applying schematic');
-		};
+				(ir.post?.save ? 1 : 0) +
+				(ir.post?.capturePng ? 1 : 0);
+			let doneSteps = 0;
+			let lastPct = -1;
+			let lastProgressUpdateAt = 0;
+			const bump = () => {
+				doneSteps += 1;
+				if (!totalSteps) return;
+				const pct = Math.min(99, Math.floor((doneSteps / totalSteps) * 100));
+				// Avoid spamming UI updates (can freeze the editor on large IR batches).
+				const now = Date.now();
+				if (pct === lastPct && now - lastProgressUpdateAt < 500) return;
+				lastPct = pct;
+				lastProgressUpdateAt = now;
+				eda.sys_LoadingAndProgressBar.showProgressBar(pct, 'MCP: Applying schematic');
+			};
 
 		// Components (upsert)
 		for (const c of ir.components) {
@@ -279,30 +286,32 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 			const x = toSchUnits(c.x, units);
 			const y = toSchUnits(c.y, units);
 
-			const updateExisting = async (): Promise<boolean> => {
-				if (!existing) return false;
-				if (existing.deviceUuid !== desiredMeta.deviceUuid || existing.libraryUuid !== desiredMeta.libraryUuid) return false;
-				try {
-					const updated = await (eda.sch_PrimitiveComponent as any).modify(existing.primitiveId, {
-						x,
-						y,
-						rotation: c.rotation,
-						mirror: c.mirror,
-						addIntoBom: c.addIntoBom,
-						addIntoPcb: c.addIntoPcb,
-						designator: c.designator,
-						name: c.name,
-						otherProperty: {
-							__mcp_id: c.id,
-							__mcp_deviceUuid: desiredMeta.deviceUuid,
-							__mcp_libraryUuid: desiredMeta.libraryUuid,
-						},
-					});
-					return Boolean(updated);
-				} catch {
-					return false;
-				}
-			};
+				const updateExisting = async (): Promise<boolean> => {
+					if (!existing) return false;
+					if (existing.deviceUuid !== desiredMeta.deviceUuid || existing.libraryUuid !== desiredMeta.libraryUuid) return false;
+					try {
+						const property: any = {
+							x,
+							y,
+							otherProperty: {
+								__mcp_id: c.id,
+								__mcp_deviceUuid: desiredMeta.deviceUuid,
+								__mcp_libraryUuid: desiredMeta.libraryUuid,
+							},
+						};
+						if (c.rotation !== undefined) property.rotation = c.rotation;
+						if (c.mirror !== undefined) property.mirror = c.mirror;
+						if (c.addIntoBom !== undefined) property.addIntoBom = c.addIntoBom;
+						if (c.addIntoPcb !== undefined) property.addIntoPcb = c.addIntoPcb;
+						if (c.designator !== undefined) property.designator = c.designator;
+						if (c.name !== undefined) property.name = c.name;
+
+						const updated = await (eda.sch_PrimitiveComponent as any).modify(existing.primitiveId, property);
+						return Boolean(updated);
+					} catch {
+						return false;
+					}
+				};
 
 			const updated = await updateExisting();
 			if (updated && existing) {
@@ -334,20 +343,21 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 
 			const primitiveId: string = primitive.getState_PrimitiveId();
 
-			// Set metadata + display fields
-			try {
-				await (eda.sch_PrimitiveComponent as any).modify(primitiveId, {
-					designator: c.designator,
-					name: c.name,
-					otherProperty: {
-						__mcp_id: c.id,
-						__mcp_deviceUuid: desiredMeta.deviceUuid,
-						__mcp_libraryUuid: desiredMeta.libraryUuid,
-					},
-				});
-			} catch {
-				// ignore
-			}
+				// Set metadata + display fields
+				try {
+					const property: any = {
+						otherProperty: {
+							__mcp_id: c.id,
+							__mcp_deviceUuid: desiredMeta.deviceUuid,
+							__mcp_libraryUuid: desiredMeta.libraryUuid,
+						},
+					};
+					if (c.designator !== undefined) property.designator = c.designator;
+					if (c.name !== undefined) property.name = c.name;
+					await (eda.sch_PrimitiveComponent as any).modify(primitiveId, property);
+				} catch {
+					// ignore
+				}
 
 			map.components[c.id] = { primitiveId, ...desiredMeta };
 			applied.components[c.id] = { primitiveId, action: existing ? 'replaced' : 'created' };
@@ -444,31 +454,33 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 			bump();
 		}
 
-		// Texts (upsert)
-		for (const t of ir.texts) {
-			const existing = map.texts[t.id];
-			const x = toSchUnits(t.x, units);
+			// Texts (upsert)
+			for (const t of ir.texts) {
+				const existing = map.texts[t.id];
+				const x = toSchUnits(t.x, units);
 			const y = toSchUnits(t.y, units);
 
-			if (existing) {
-				try {
-					const updated = await eda.sch_PrimitiveText.modify(existing.primitiveId, {
-						x,
-						y,
-						content: t.content,
-						rotation: t.rotation,
-						textColor: t.textColor ?? undefined,
-						fontName: t.fontName ?? undefined,
-						fontSize: t.fontSize ?? undefined,
-						bold: t.bold,
-						italic: t.italic,
-						underLine: t.underLine,
-						alignMode: t.alignMode,
-					});
-					if (updated) {
-						applied.texts[t.id] = { primitiveId: existing.primitiveId, action: 'updated' };
-						bump();
-						continue;
+				if (existing) {
+					try {
+						const property: any = {
+							x,
+							y,
+							content: t.content,
+						};
+						if (t.rotation !== undefined) property.rotation = t.rotation;
+						if (t.textColor !== undefined) property.textColor = t.textColor;
+						if (t.fontName !== undefined) property.fontName = t.fontName;
+						if (t.fontSize !== undefined) property.fontSize = t.fontSize;
+						if (t.bold !== undefined) property.bold = t.bold;
+						if (t.italic !== undefined) property.italic = t.italic;
+						if (t.underLine !== undefined) property.underLine = t.underLine;
+						if (t.alignMode !== undefined) property.alignMode = t.alignMode;
+
+						const updated = await eda.sch_PrimitiveText.modify(existing.primitiveId, property);
+						if (updated) {
+							applied.texts[t.id] = { primitiveId: existing.primitiveId, action: 'updated' };
+							bump();
+							continue;
 					}
 				} catch {
 					// ignore
@@ -483,25 +495,25 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 				}
 			}
 
-			const primitive = await eda.sch_PrimitiveText.create(
-				x,
-				y,
-				t.content,
-				t.rotation,
-				t.textColor ?? undefined,
-				t.fontName ?? undefined,
-				t.fontSize ?? undefined,
-				t.bold,
-				t.italic,
-				t.underLine,
-				t.alignMode,
-			);
+				const primitive = await eda.sch_PrimitiveText.create(
+					x,
+					y,
+					t.content,
+					t.rotation,
+					t.textColor === undefined ? undefined : t.textColor,
+					t.fontName === undefined ? undefined : t.fontName,
+					t.fontSize === undefined ? undefined : t.fontSize,
+					t.bold,
+					t.italic,
+					t.underLine,
+					t.alignMode,
+				);
 			if (!primitive) throw rpcError('CREATE_FAILED', `Failed to create text ${t.id}`);
 			const primitiveId = primitive.getState_PrimitiveId();
 			map.texts[t.id] = { primitiveId };
-			applied.texts[t.id] = { primitiveId, action: existing ? 'replaced' : 'created' };
-			bump();
-		}
+				applied.texts[t.id] = { primitiveId, action: existing ? 'replaced' : 'created' };
+				bump();
+			}
 
 			// Wires (upsert)
 			for (const w of ir.wires) {
@@ -517,18 +529,18 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 							applied.wires[w.id] = { primitiveId: existing.primitiveId, action: 'updated' };
 							bump();
 							continue;
+						}
+					} catch {
+						// ignore
 					}
-				} catch {
-					// ignore
 				}
-			}
 
-			if (existing) {
-				try {
-					await eda.sch_PrimitiveWire.delete(existing.primitiveId);
-				} catch {
-					// ignore
-				}
+				if (existing) {
+					try {
+						await eda.sch_PrimitiveWire.delete(existing.primitiveId);
+					} catch {
+						// ignore
+					}
 				}
 
 				const primitive =
@@ -537,8 +549,8 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 				const primitiveId = primitive.getState_PrimitiveId();
 				map.wires[w.id] = { primitiveId };
 				applied.wires[w.id] = { primitiveId, action: existing ? 'replaced' : 'created' };
-			bump();
-		}
+				bump();
+			}
 
 		// Connections (auto wire, upsert)
 		const pinsCache = new Map<string, Array<Pin>>();
@@ -553,9 +565,9 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 			return pins;
 		};
 
-		for (const conn of ir.connections) {
-			const fromPins = await getPins(conn.from.componentId);
-			const toPins = await getPins(conn.to.componentId);
+			for (const conn of ir.connections) {
+				const fromPins = await getPins(conn.from.componentId);
+				const toPins = await getPins(conn.to.componentId);
 
 			const fromPin = selectPin(fromPins, { pinNumber: conn.from.pinNumber, pinName: conn.from.pinName }, 'from');
 			const toPin = selectPin(toPins, { pinNumber: conn.to.pinNumber, pinName: conn.to.pinName }, 'to');
@@ -568,10 +580,10 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 			let line: Array<number>;
 			if (conn.style === 'straight') {
 				line = [x1, y1, x2, y2];
-			} else {
-				const midX = conn.midX !== undefined ? toSchUnits(conn.midX, units) : (x1 + x2) / 2;
-				line = [x1, y1, midX, y1, midX, y2, x2, y2];
-			}
+				} else {
+					const midX = conn.midX !== undefined ? toSchUnits(conn.midX, units) : (x1 + x2) / 2;
+					line = [x1, y1, midX, y1, midX, y2, x2, y2];
+				}
 
 				const existing = map.connections[conn.id];
 				if (existing) {
@@ -583,18 +595,18 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 							applied.connections[conn.id] = { primitiveId: existing.primitiveId, action: 'updated' };
 							bump();
 							continue;
+						}
+					} catch {
+						// ignore
 					}
-				} catch {
-					// ignore
 				}
-			}
 
-			if (existing) {
-				try {
-					await eda.sch_PrimitiveWire.delete(existing.primitiveId);
-				} catch {
-					// ignore
-				}
+				if (existing) {
+					try {
+						await eda.sch_PrimitiveWire.delete(existing.primitiveId);
+					} catch {
+						// ignore
+					}
 				}
 
 				const wire =
@@ -603,8 +615,8 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 				const primitiveId = wire.getState_PrimitiveId();
 				map.connections[conn.id] = { primitiveId };
 				applied.connections[conn.id] = { primitiveId, action: existing ? 'replaced' : 'created' };
-			bump();
-		}
+				bump();
+			}
 
 		// Persist updated map (after all mutations)
 		await saveSchematicMap(docUuid, map);
