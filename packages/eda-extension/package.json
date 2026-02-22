@@ -1,6 +1,6 @@
 {
 	"name": "jlceda-mcp-bridge-extension",
-	"version": "0.0.12",
+	"version": "0.0.13",
 	"description": "JLCEDA Pro extension bridge for MCP",
 	"author": "local-dev",
 	"license": "Apache-2.0",

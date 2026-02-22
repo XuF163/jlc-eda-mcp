@@ -4,7 +4,9 @@ import {
 	asOptionalBoolean,
 	asOptionalNumber,
 	asOptionalString,
+	asOptionalUuid32,
 	asString,
+	asUuid32,
 	endsWithPathSeparator,
 	rpcError,
 	safeFileName,
@@ -96,8 +98,8 @@ export async function placeDevice(params: unknown): Promise<{ primitiveId: strin
 	await requireSchematicPage();
 
 	const input = params ? asObject(params, 'params') : {};
-	const deviceUuid = asString(input.deviceUuid, 'deviceUuid');
-	const libraryUuid = asOptionalString(input.libraryUuid, 'libraryUuid');
+	const deviceUuid = asUuid32(input.deviceUuid, 'deviceUuid');
+	const libraryUuid = asOptionalUuid32(input.libraryUuid, 'libraryUuid');
 	const x = asNumber(input.x, 'x');
 	const y = asNumber(input.y, 'y');
 	const subPartName = asOptionalString(input.subPartName, 'subPartName');

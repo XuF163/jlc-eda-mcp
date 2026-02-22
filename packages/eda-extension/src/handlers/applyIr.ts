@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { rpcError, safeFileName } from '../bridge/validate';
+import { isUuid32, rpcError, safeFileName } from '../bridge/validate';
 import { SchematicIrSchema, type SchematicIrV1, type Units } from '../ir/schematicIr';
 import { createEmptySchematicMap, loadSchematicMap, saveSchematicMap, type SchematicMapV1 } from '../state/schematicMap';
 import { captureRenderedAreaImage, ensureSchematicPage } from './document';
@@ -17,6 +17,30 @@ function mapLine(line: Array<number> | Array<Array<number>>, units: Units): Arra
 		return (line as Array<number>).map((n) => toSchUnits(n, units));
 	}
 	return (line as Array<Array<number>>).map((seg) => seg.map((n) => toSchUnits(n, units)));
+}
+
+function requireValidWireLine(line: Array<number> | Array<Array<number>>, label: string): void {
+	const validateSegment = (seg: Array<number>): void => {
+		if (seg.length < 4 || seg.length % 2 !== 0) {
+			throw rpcError('INVALID_PARAMS', `${label}.line must have even length >= 4`);
+		}
+		for (const n of seg) {
+			if (typeof n !== 'number' || Number.isNaN(n) || !Number.isFinite(n)) {
+				throw rpcError('INVALID_PARAMS', `${label}.line contains non-finite numbers`);
+			}
+		}
+	};
+
+	if (Array.isArray(line) && typeof line[0] === 'number') {
+		validateSegment(line as Array<number>);
+		return;
+	}
+	if (Array.isArray(line) && Array.isArray(line[0])) {
+		for (const seg of line as Array<Array<number>>) validateSegment(seg);
+		return;
+	}
+
+	throw rpcError('INVALID_PARAMS', `${label}.line must be number[] or number[][]`);
 }
 
 function ensureUniqueIds(items: Array<{ id: string }>, label: string): void {
@@ -54,6 +78,10 @@ async function requireSchematicPage(): Promise<{ tabId: string; uuid: string }> 
 }
 
 async function resolveDeviceRef(deviceUuid: string, libraryUuid?: string): Promise<{ uuid: string; libraryUuid: string }> {
+	if (!isUuid32(deviceUuid)) throw rpcError('INVALID_PARAMS', `Invalid deviceUuid (expected 32-char hex UUID): ${deviceUuid}`);
+	if (libraryUuid && !isUuid32(libraryUuid)) {
+		throw rpcError('INVALID_PARAMS', `Invalid libraryUuid (expected 32-char hex UUID): ${libraryUuid}`);
+	}
 	if (libraryUuid) return { uuid: deviceUuid, libraryUuid };
 	const device = await eda.lib_Device.get(deviceUuid);
 	if (!device) throw rpcError('NOT_FOUND', `Device not found: ${deviceUuid}`);
@@ -519,6 +547,7 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 			for (const w of ir.wires) {
 				const existing = map.wires[w.id];
 				const line = mapLine(w.line as any, units) as any;
+				requireValidWireLine(line as any, `wire(${w.id})`);
 
 				if (existing) {
 					try {
@@ -584,6 +613,7 @@ export async function applySchematicIr(params: unknown): Promise<unknown> {
 					const midX = conn.midX !== undefined ? toSchUnits(conn.midX, units) : (x1 + x2) / 2;
 					line = [x1, y1, midX, y1, midX, y2, x2, y2];
 				}
+				requireValidWireLine(line as any, `connection(${conn.id})`);
 
 				const existing = map.connections[conn.id];
 				if (existing) {

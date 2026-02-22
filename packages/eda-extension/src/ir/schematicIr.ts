@@ -3,6 +3,8 @@ import { z } from 'zod';
 export const UnitsSchema = z.enum(['sch', 'mm']).default('sch');
 export type Units = z.infer<typeof UnitsSchema>;
 
+const Uuid32Schema = z.string().regex(/^[a-f0-9]{32}$/i, { message: 'Expected 32-char hex UUID' });
+
 const PageSchema = z
 	.object({
 		ensure: z.boolean().optional().default(true),
@@ -16,8 +18,8 @@ const PageSchema = z
 
 const ComponentSchema = z.object({
 	id: z.string().min(1),
-	deviceUuid: z.string().min(1),
-	libraryUuid: z.string().min(1).optional(),
+	deviceUuid: Uuid32Schema,
+	libraryUuid: Uuid32Schema.optional(),
 	x: z.number(),
 	y: z.number(),
 	subPartName: z.string().min(1).optional(),

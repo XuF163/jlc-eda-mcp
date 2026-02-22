@@ -1,9 +1,9 @@
-import { asObject, asOptionalNumber, asOptionalString, asString, rpcError } from '../bridge/validate';
+import { asObject, asOptionalNumber, asOptionalUuid32, asString, asUuid32, rpcError } from '../bridge/validate';
 
 export async function searchDevices(params: unknown): Promise<unknown> {
 	const input = params ? asObject(params, 'params') : {};
 	const key = asString(input.key, 'key');
-	const libraryUuid = asOptionalString(input.libraryUuid, 'libraryUuid');
+	const libraryUuid = asOptionalUuid32(input.libraryUuid, 'libraryUuid');
 	const page = asOptionalNumber(input.page, 'page') ?? 1;
 	const limit = asOptionalNumber(input.limit, 'limit') ?? 10;
 
@@ -13,8 +13,8 @@ export async function searchDevices(params: unknown): Promise<unknown> {
 
 export async function getDevice(params: unknown): Promise<unknown> {
 	const input = params ? asObject(params, 'params') : {};
-	const deviceUuid = asString(input.deviceUuid, 'deviceUuid');
-	const libraryUuid = asOptionalString(input.libraryUuid, 'libraryUuid');
+	const deviceUuid = asUuid32(input.deviceUuid, 'deviceUuid');
+	const libraryUuid = asOptionalUuid32(input.libraryUuid, 'libraryUuid');
 
 	const item = await eda.lib_Device.get(deviceUuid, libraryUuid);
 	if (!item) throw rpcError('NOT_FOUND', 'Device not found');
