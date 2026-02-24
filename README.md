@@ -40,3 +40,4 @@ node packages/mcp-server/dist/cli.js --port 9050
   "args": ["-y", "jlceda-eda-mcp", "--port", "9050"]
 }
 ```
+npm包仅提供有限的功能，出于灵活性考虑，建议使用codex驱动的skills，目前已确认可在gpt5.2 xhigh下实现基础的跨工程交互能力(网表模块复用)
