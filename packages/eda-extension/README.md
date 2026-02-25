@@ -165,4 +165,5 @@ curl -s http://127.0.0.1:9151/v1/status
 - `npm -w packages/eda-extension run compile`：esbuild 编译到 `dist/`
 - `npm -w packages/eda-extension run build`：编译 + 打包 `.eext`
 - `npm -w packages/eda-extension run typecheck`：tsc 类型检查
-
+  
+开源地址：https://github.com/XuF163/jlc-eda-mcp
