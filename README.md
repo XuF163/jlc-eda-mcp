@@ -49,7 +49,7 @@ node packages/mcp-server/dist/cli.js --port 9050
   "args": ["-y", "jlceda-eda-mcp", "--port", "9050"]
 }
 ```
-<<<<<<< HEAD
+
 
 ## 目录结构
 
@@ -67,6 +67,6 @@ node packages/mcp-server/dist/cli.js --port 9050
 - 绘图风格：`docs/SCHEMATIC_STYLE.md`
 - WebSocket 协议：`docs/PROTOCOL.md`
 - 卸载排障：`docs/UNINSTALL.md`
-=======
+
 npm包仅提供有限的功能，出于灵活性考虑，建议使用codex驱动的skills，目前已确认可在gpt5.2 xhigh下实现基础的跨工程交互能力(网表模块复用)
->>>>>>> b16727959c0a793ba8b60438210f8087df6995a8
+
