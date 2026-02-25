@@ -54,13 +54,15 @@ node packages/mcp-server/dist/cli.js --port 9050
 ## 目录结构
 
 - `packages/mcp-server`：WebSocket Bridge（供 EDA 扩展连接）+ MCP（stdio，可选）+ HTTP REST（可选）
-- `packages/eda-extension`：嘉立创EDA 专业版扩展（桥接执行真实的 `eda.*` API）
+- `packages/eda-extension`：嘉立创EDA 专业版扩展（桥接执行真实的 `eda.*` API；扩展说明见 `packages/eda-extension/README.md`）
 - `skills/`：面向 LLM 的 Skills（推荐使用 HTTP REST 驱动）
 - `docs/`：协议、工具清单、IR 规范与验证工具等
 
 ## 文档索引
 
 - 安装与环境：`docs/SETUP.md`
+- 扩展说明（EDA Extension）：`packages/eda-extension/README.md`
+- 扩展更新记录：`packages/eda-extension/CHANGELOG.md`
 - 工具清单：`docs/MCP_TOOLS.md`
 - SchematicIR：`docs/SCHEMATIC_IR.md`
 - 连通性验证：`docs/VERIFY_NETS.md`
