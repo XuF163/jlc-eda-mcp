@@ -4,5 +4,4 @@
 
 ## Skills
 
-- `jlceda-eda-rest`：启动本地 HTTP 代理 + 用 curl 调用 `jlc.*` 工具（含 `jlc.eda.invoke/get/keys` 全量透传）
-
+- `jlceda-eda-rest`：启动本地 HTTP 代理 + 用 curl 调用 `jlc.*` 工具；也支持 `POST /v1/rpc` 直连 `eda-extension` 暴露的 RPC 方法（原子化覆盖全部能力）
