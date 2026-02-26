@@ -1,10 +1,9 @@
 # JLCEDA MCP Bridge（EDA Extension）
 
-本目录是运行在 **嘉立创 EDA Pro 本地客户端** 内的扩展：`jlceda-mcp-bridge`。  
-它的作用是把 EDA 内部的 `globalThis.eda.*` 能力，通过 **WebSocket RPC** 暴露给仓库中的 `packages/mcp-server`（再由 MCP tools / HTTP REST 提供给外部调用，如ClaudeCode、Codex、OpenClaw等），旨在实现高度自动化能力。
-
-> 关键点：**监听端口的是 `packages/mcp-server`**（本机 Node 进程），扩展只是 WebSocket 客户端。
-## 快速演示
+本项目是运行在 **嘉立创 EDA Pro 本地客户端** 内的扩展：`jlceda-mcp-bridge`。  
+它的作用是把 EDA 内部的 `globalThis.eda.*` 能力，通过 **WebSocket RPC** 暴露给外部自动化工具（如 Codex、OpenClaw 等），用于读取/编辑/导出工程并支持脚本化操作。  
+（历史配套的 `packages/mcp-server` 已弃用，见文末备注。）
+## 演示
 ![alt text](./images/image.png)
 ![alt text](./images/image-1.png)
 ![alt text](./images/image-2.png)
@@ -27,6 +26,13 @@ cd docs
 ![alt text](./images/image-7.png)
 
 如果不喜欢用codex用openclaw也是可以的，无需单独配置mcp，直接通过skills强力驱动
+
+## 快速上手
+1.安装本插件
+2.扩展管理器-配置 开启外部交互能力
+![alt text](image.png)
+3.启动ai工具
+
 ## 扩展提供的能力（这部分供LLM读取）
 
 扩展侧对外暴露的 RPC 方法清单在：
@@ -122,27 +128,15 @@ npm -w packages/eda-extension run build
 
 - `MCP Bridge -> Status / Diagnostics / Configure...`
 
-### 3) 启动本机 Bridge（`packages/mcp-server`）
-
-扩展需要连接到本机 WebSocket Bridge（默认 `ws://127.0.0.1:9050`）。例如启用 HTTP（推荐 skills/curl）：
-
-```bash
-node packages/mcp-server/dist/cli.js --port 9050 --http --no-mcp
-```
-
-验证桥接状态（HTTP）：
-
-```bash
-curl -s http://127.0.0.1:9151/v1/status
-```
-
-### 4) 在 EDA 里配置并连接
+### 3) 在 EDA 里配置并连接
 
 在 EDA 顶部菜单：
 
 - `MCP Bridge -> Configure...`：填写 WebSocket URL（例：`ws://127.0.0.1:9050`）
 
 当前版本扩展默认 **自动连接**（activationEvents：`onStartupFinished/onEditorSchematic`），通常不需要手动点 Connect。
+
+> 注意：需要本机有可连接的 WebSocket Bridge 服务（具体启动方式见 `jlc-eda-mcp/docs/SETUP.md`）。
 
 连接后可通过：
 
@@ -153,7 +147,7 @@ curl -s http://127.0.0.1:9151/v1/status
 
 ### 1) Status 显示未连接 / 一直 reconnect
 
-- 确认 `packages/mcp-server` 进程在本机运行，并监听到正确端口
+- 确认本机 WebSocket Bridge 服务在运行，并监听到正确端口
 - 确认 `Configure...` 里填写的 URL 正确（例如 `ws://127.0.0.1:9050`）
 - 检查扩展权限（见 `jlc-eda-mcp/docs/SETUP.md` 的权限提示）
 
@@ -189,3 +183,11 @@ curl -s http://127.0.0.1:9151/v1/status
 - `npm -w packages/eda-extension run typecheck`：tsc 类型检查
   
 开源地址：https://github.com/XuF163/jlc-eda-mcp
+
+## 备注：`packages/mcp-server` 已弃用
+
+`packages/mcp-server` 属于早期桥接实现，现已不再推荐使用：
+
+- 链路长（WS/MCP/HTTP 多层封装），端到端效率低、延迟高
+- 组件多、耦合重，调试与排错成本高
+- 维护成本高（协议/工具链变化频繁，兼容性压力大）

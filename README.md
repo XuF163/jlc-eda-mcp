@@ -32,6 +32,18 @@ node packages/mcp-server/dist/cli.js --port 9050 --http --no-mcp
 curl -s http://127.0.0.1:9151/v1/status
 ```
 
+## 自建 Bridge（不依赖 MCP）
+
+EDA 扩展本身是 **WebSocket 客户端**，不会在 EDA 进程内监听 HTTP/TCP 端口；因此无论你是否使用 MCP（stdio），都需要一个本机常驻的 **Bridge 服务**来：
+
+- 作为 WebSocket 服务端监听 `ws://127.0.0.1:<port>`（等待 EDA 扩展连接）
+- 再把外部请求（curl/LLM/脚本）转成 `docs/PROTOCOL.md` 里的 RPC `request/response`
+
+本仓库提供的 `packages/mcp-server` 是一个参考实现（WS Bridge + 可选 HTTP + 可选 MCP）。  
+如果你希望在用户侧快速“自己搭一个最小 Bridge”（例如不想启用 MCP，或不方便使用 Node），请直接看：
+
+- `docs/BRIDGE_QUICKSTART.md`
+
 ## MCP（stdio）支持程度
 
 - 仍提供 MCP Server（stdio）以便接入通用 MCP 客户端，但仓库的默认示例/文档会优先覆盖 **HTTP + Skills** 的调用方式。
@@ -68,6 +80,7 @@ node packages/mcp-server/dist/cli.js --port 9050
 - 连通性验证：`docs/VERIFY_NETS.md`
 - 绘图风格：`docs/SCHEMATIC_STYLE.md`
 - WebSocket 协议：`docs/PROTOCOL.md`
+- 自建 Bridge 指南：`docs/BRIDGE_QUICKSTART.md`
 - 卸载排障：`docs/UNINSTALL.md`
 
 npm包仅提供有限的功能，出于灵活性考虑，建议使用codex驱动的skills，目前已确认可在gpt5.2 xhigh下实现基础的跨工程交互能力(网表模块复用)

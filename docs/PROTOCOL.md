@@ -1,4 +1,4 @@
-# WebSocket Protocol (EDA Extension <-> MCP Server)
+# WebSocket Protocol (EDA Extension <-> Bridge Server)
 
 传输：WebSocket（建议仅绑定 `127.0.0.1`）。
 
@@ -73,3 +73,10 @@ Extension -> Server（失败）：
 - `eda.invoke`（高级/危险：按路径调用任意 `eda.*` 方法）
 - `eda.get`（高级/危险：按路径读取任意 `eda.*` 值）
 - `eda.keys`（高级/危险：按路径列出 `eda.*` 键）
+
+## 4) Keepalive / Timing（很重要）
+
+为了让扩展认为“链路可用”，Bridge 侧需要主动产生 **server -> extension** 的请求流量：
+
+- **连接建立后尽快发一次 `ping`**（或任意请求），用于让扩展确认握手成功
+- 后续建议 **每 ~15s 发送一次 `ping`** 作为 keepalive（否则扩展可能会认为“长时间无 server 请求”而断开并重连）

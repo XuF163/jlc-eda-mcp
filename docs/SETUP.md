@@ -5,6 +5,10 @@
 - `packages/mcp-server`：MCP Server（通过 `stdio` 提供 tools），同时在本机开启 WebSocket 等待 EDA 扩展连接
 - `packages/eda-extension`：嘉立创EDA 专业版扩展（桥接 WebSocket，执行真实的 EDA 自动化 API）
 
+> 提示：EDA 扩展是 **WebSocket 客户端**，不会在 EDA 进程里监听 HTTP/TCP 端口。  
+> 因此无论你用不用 MCP（stdio），都需要一个本机常驻的 **Bridge 服务**作为 WebSocket 服务端让扩展连上。  
+> `packages/mcp-server` 是仓库提供的参考实现；你也可以自建最小 Bridge（见 `docs/BRIDGE_QUICKSTART.md`）。
+
 ## 1) 安装依赖
 
 在 `jlc-eda-mcp` 目录执行：
@@ -91,3 +95,10 @@ npm -w packages/eda-extension run build
 - 文档导出：`SYS_FileManager.getDocumentFile`
 
 如果遇到 `EXPORT_FAILED` / `SAVE_FILE_FAILED` 等错误，请优先检查扩展权限是否已开启。
+
+## 自建最小 Bridge（可选）
+
+如果你不想使用 `packages/mcp-server`（例如用户侧不方便使用 Node / 不需要 MCP），可以按 `docs/BRIDGE_QUICKSTART.md` 自建一个最小 Bridge：
+
+- WebSocket 服务端：给 EDA 扩展连接（实现 `docs/PROTOCOL.md` 的 RPC）
+- （可选）HTTP 入口：方便用 `curl` 调 `POST /v1/rpc`
