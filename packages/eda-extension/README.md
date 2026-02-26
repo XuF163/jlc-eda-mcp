@@ -1,11 +1,33 @@
 # JLCEDA MCP Bridge（EDA Extension）
 
 本目录是运行在 **嘉立创 EDA Pro 本地客户端** 内的扩展：`jlceda-mcp-bridge`。  
-它的作用是把 EDA 内部的 `globalThis.eda.*` 能力，通过 **WebSocket RPC** 暴露给仓库中的 `packages/mcp-server`（再由 MCP tools / HTTP REST 提供给外部调用，如ClaudeCode、Codex、Clawbot等），旨在实现高度自动化能力。
+它的作用是把 EDA 内部的 `globalThis.eda.*` 能力，通过 **WebSocket RPC** 暴露给仓库中的 `packages/mcp-server`（再由 MCP tools / HTTP REST 提供给外部调用，如ClaudeCode、Codex、OpenClaw等），旨在实现高度自动化能力。
 
 > 关键点：**监听端口的是 `packages/mcp-server`**（本机 Node 进程），扩展只是 WebSocket 客户端。
+## 快速演示
+![alt text](./images/image.png)
+![alt text](./images/image-1.png)
+![alt text](./images/image-2.png)
+使用时请先：  
+```  
+git clone --depth=1 https://github.com/XuF163/jlc-eda-mcp
+cd jlc-eda-mcp
+cd docs
+```  
+帮助ai通过阅读skills快速学会操作嘉立创eda
+插件扩展会在打开工程时候自动启动：  
+![alt text](./images/image-3.png)
+选中原理图对象
+![alt text](./images/image-4.png) 
+我用的vscode中的codex插件，原理图读取功能展示如下：
 
-## 扩展提供的能力（功能清单）
+![alt text](./images/image-5.png)
+![alt text](./images/image-6.png)
+强大的原理图精确编辑能力：
+![alt text](./images/image-7.png)
+
+如果不喜欢用codex用openclaw也是可以的，无需单独配置mcp，直接通过skills强力驱动
+## 扩展提供的能力（这部分供LLM读取）
 
 扩展侧对外暴露的 RPC 方法清单在：
 
