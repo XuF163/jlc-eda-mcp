@@ -1,6 +1,70 @@
 import crypto from 'node:crypto';
+import * as http from 'node:http';
+import fs from 'node:fs';
+import * as fsp from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import WebSocket, { WebSocketServer } from 'ws';
 import { z } from 'zod';
+
+const DOCS_PREFIX = '/docs';
+
+function resolveDocsRoot(): string | undefined {
+	if ((process.env.JLCEDA_DOCS_DISABLED ?? '') === '1') return undefined;
+
+	const env = process.env.JLCEDA_DOCS_ROOT?.trim();
+	if (env) return env;
+
+	// Repo default (when running from repo root)
+	const cwdCandidate = path.resolve(process.cwd(), 'packages', 'eda-extension', 'docs');
+	if (fs.existsSync(cwdCandidate)) return cwdCandidate;
+
+	// Fallback: relative to this file (useful when running from built dist/)
+	const metaCandidate = fileURLToPath(new URL('../../../../eda-extension/docs', import.meta.url));
+	if (fs.existsSync(metaCandidate)) return metaCandidate;
+
+	return undefined;
+}
+
+function safeDecodePathSegment(seg: string): string | undefined {
+	try {
+		return decodeURIComponent(seg);
+	} catch {
+		return undefined;
+	}
+}
+
+function contentTypeForFile(filePath: string): string {
+	const ext = path.extname(filePath).toLowerCase();
+	switch (ext) {
+		case '.md':
+			return 'text/markdown; charset=utf-8';
+		case '.txt':
+			return 'text/plain; charset=utf-8';
+		case '.json':
+			return 'application/json; charset=utf-8';
+		case '.svg':
+			return 'image/svg+xml; charset=utf-8';
+		case '.png':
+			return 'image/png';
+		case '.jpg':
+		case '.jpeg':
+			return 'image/jpeg';
+		case '.gif':
+			return 'image/gif';
+		default:
+			return 'application/octet-stream';
+	}
+}
+
+async function statMaybe(p: string): Promise<import('node:fs').Stats | undefined> {
+	try {
+		return await fsp.stat(p);
+	} catch (err) {
+		if ((err as any)?.code === 'ENOENT') return undefined;
+		throw err;
+	}
+}
 
 const HelloMessageSchema = z.object({
 	type: z.literal('hello'),
@@ -59,7 +123,9 @@ export type BridgeStatus = {
 export class WsBridge {
 	readonly listenPort: number;
 
+	#httpServer: http.Server;
 	#server: WebSocketServer;
+	#docsRoot: string | undefined;
 	#socket: WebSocket | undefined;
 	#clientHello: HelloMessage | undefined;
 	#connectedAt: Date | undefined;
@@ -73,8 +139,19 @@ export class WsBridge {
 		this.listenPort = opts.port;
 		this.#log = opts.log;
 
-		this.#server = new WebSocketServer({ host: '127.0.0.1', port: opts.port });
+		this.#docsRoot = resolveDocsRoot();
+
+		this.#httpServer = http.createServer((req, res) => {
+			void this.#handleHttpRequest(req, res);
+		});
+		this.#httpServer.listen({ host: '127.0.0.1', port: opts.port });
+
+		this.#server = new WebSocketServer({ server: this.#httpServer });
 		this.#server.on('connection', (ws, req) => this.#handleConnection(ws, req.socket.remoteAddress));
+
+		if (this.#docsRoot) {
+			this.#log?.(`[jlceda-eda-mcp] Docs available at http://127.0.0.1:${opts.port}${DOCS_PREFIX}/`);
+		}
 	}
 
 	getStatus(): BridgeStatus {
@@ -125,7 +202,138 @@ export class WsBridge {
 		} catch {
 			// ignore
 		}
-		this.#server.close();
+		try {
+			this.#server.close();
+		} catch {
+			// ignore
+		}
+		try {
+			this.#httpServer.close();
+		} catch {
+			// ignore
+		}
+	}
+
+	async #handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		try {
+			if (await this.#tryServeDocs(req, res)) return;
+
+			// Everything else is WS-only.
+			res.statusCode = 426;
+			res.setHeader('content-type', 'text/plain; charset=utf-8');
+			res.setHeader('cache-control', 'no-store');
+			res.end('Upgrade Required (WebSocket)');
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			this.#log?.(`[jlceda-eda-mcp] HTTP(${this.listenPort}) error: ${msg}`);
+			res.statusCode = 500;
+			res.setHeader('content-type', 'text/plain; charset=utf-8');
+			res.setHeader('cache-control', 'no-store');
+			res.end('Internal Server Error');
+		}
+	}
+
+	async #tryServeDocs(req: http.IncomingMessage, res: http.ServerResponse): Promise<boolean> {
+		if (!this.#docsRoot) return false;
+
+		const method = (req.method ?? 'GET').toUpperCase();
+		if (method !== 'GET' && method !== 'HEAD') return false;
+
+		const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`);
+		const pathname = url.pathname || '/';
+		if (!pathname.startsWith(DOCS_PREFIX)) return false;
+
+		let rel = pathname.slice(DOCS_PREFIX.length); // "" or "/..."
+		if (rel.startsWith('/')) rel = rel.slice(1);
+
+		// Normalize and guard against directory traversal.
+		const rawSegments = rel.split('/').filter(Boolean);
+		const segments: Array<string> = [];
+		for (const raw of rawSegments) {
+			const decoded = safeDecodePathSegment(raw);
+			if (!decoded) {
+				res.statusCode = 400;
+				res.setHeader('content-type', 'text/plain; charset=utf-8');
+				res.end('Bad Request');
+				return true;
+			}
+			if (!decoded || decoded === '.' || decoded === '..') {
+				res.statusCode = 400;
+				res.setHeader('content-type', 'text/plain; charset=utf-8');
+				res.end('Bad Request');
+				return true;
+			}
+			if (decoded.includes('\0') || decoded.includes('/') || decoded.includes('\\')) {
+				res.statusCode = 400;
+				res.setHeader('content-type', 'text/plain; charset=utf-8');
+				res.end('Bad Request');
+				return true;
+			}
+			segments.push(decoded);
+		}
+
+		const fsPath = path.join(this.#docsRoot, ...segments);
+		const st = await statMaybe(fsPath);
+		if (!st) {
+			res.statusCode = 404;
+			res.setHeader('content-type', 'text/plain; charset=utf-8');
+			res.end('Not Found');
+			return true;
+		}
+
+		if (st.isDirectory()) {
+			const indexCandidates = ['README.md', 'index.md'];
+			for (const name of indexCandidates) {
+				const p = path.join(fsPath, name);
+				const s = await statMaybe(p);
+				if (s?.isFile()) {
+					await this.#sendFile(res, p, method === 'HEAD');
+					return true;
+				}
+			}
+
+			const entries = await fsp.readdir(fsPath, { withFileTypes: true });
+			const lines = entries
+				.slice()
+				.sort((a, b) => a.name.localeCompare(b.name))
+				.map((e) => `${e.name}${e.isDirectory() ? '/' : ''}`);
+
+			res.statusCode = 200;
+			res.setHeader('content-type', 'text/plain; charset=utf-8');
+			res.setHeader('cache-control', 'no-store');
+			res.setHeader('x-content-type-options', 'nosniff');
+			if (method === 'HEAD') {
+				res.end();
+				return true;
+			}
+
+			const prefix = pathname.endsWith('/') ? pathname : `${pathname}/`;
+			res.end(['Index:', prefix, '', ...lines, ''].join('\n'));
+			return true;
+		}
+
+		if (st.isFile()) {
+			await this.#sendFile(res, fsPath, method === 'HEAD');
+			return true;
+		}
+
+		res.statusCode = 404;
+		res.setHeader('content-type', 'text/plain; charset=utf-8');
+		res.end('Not Found');
+		return true;
+	}
+
+	async #sendFile(res: http.ServerResponse, filePath: string, headOnly: boolean): Promise<void> {
+		const data = await fsp.readFile(filePath);
+		res.statusCode = 200;
+		res.setHeader('content-type', contentTypeForFile(filePath));
+		res.setHeader('cache-control', 'no-store');
+		res.setHeader('x-content-type-options', 'nosniff');
+		if (headOnly) {
+			res.end();
+			return;
+		}
+		res.end(data);
 	}
 
 	#startKeepAlive(): void {

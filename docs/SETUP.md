@@ -41,6 +41,10 @@ node packages/mcp-server/dist/cli.js --port 9050 --http --no-mcp
 
 默认监听：`http://127.0.0.1:9151`（接口：`GET /v1/status`、`GET /v1/tools`、`POST /v1/tools/call`、`POST /v1/rpc`）。
 
+（可选）Skills 文档静态入口：
+
+- `http://127.0.0.1:9050/docs/`
+
 ## 自测（推荐）
 
 如果你暂时没有 MCP 客户端（例如只是在本地开发/调试），可以用自测模式验证端到端链路（需要你在 EDA 里点一次 `MCP Bridge -> Connect`）：

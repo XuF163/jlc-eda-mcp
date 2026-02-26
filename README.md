@@ -32,6 +32,10 @@ node packages/mcp-server/dist/cli.js --port 9050 --http --no-mcp
 curl -s http://127.0.0.1:9151/v1/status
 ```
 
+文档（给 LLM 自助阅读 skills）：
+
+- `http://127.0.0.1:9050/docs/`
+
 ## 自建 Bridge（不依赖 MCP）
 
 EDA 扩展本身是 **WebSocket 客户端**，不会在 EDA 进程内监听 HTTP/TCP 端口；因此无论你是否使用 MCP（stdio），都需要一个本机常驻的 **Bridge 服务**来：
