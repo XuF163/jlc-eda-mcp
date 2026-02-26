@@ -17,6 +17,18 @@ import {
 import { getDevice, searchDevices } from './library';
 import { connectPins, createWire, exportNetlistFile, getComponentPins, getNetlist, placeDevice, runDrc, saveSchematic } from './schematic';
 import { edaGet, edaInvoke, edaKeys } from './edaApi';
+import { createToolRegistry } from '../tools/toolRegistry';
+
+function tryParseJsonText(content: unknown): unknown {
+	if (!Array.isArray(content) || content.length !== 1) return undefined;
+	const first = content[0] as any;
+	if (!first || first.type !== 'text' || typeof first.text !== 'string') return undefined;
+	try {
+		return JSON.parse(first.text);
+	} catch {
+		return first.text;
+	}
+}
 
 export async function handleRpc(
 	method: string,
@@ -41,6 +53,34 @@ export async function handleRpc(
 		}
 		case 'getStatus':
 			return ctx.getStatus();
+		case 'tools.list': {
+			const tools = createToolRegistry({ getStatus: ctx.getStatus });
+			return {
+				ok: true,
+				tools: tools.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })),
+			};
+		}
+		case 'tools.call': {
+			const startedAt = Date.now();
+			const input = params ? asObject(params, 'params') : {};
+			const name = asString(input.name, 'name');
+			const args = input.arguments ?? {};
+
+			const tools = createToolRegistry({ getStatus: ctx.getStatus });
+			const tool = tools.find((t) => t.name === name);
+			if (!tool) throw rpcError('TOOL_NOT_FOUND', `Unknown tool: ${name}`);
+
+			const toolResult = await tool.run(args);
+			const data = tryParseJsonText((toolResult as any)?.content);
+
+			return {
+				ok: true,
+				name,
+				elapsedMs: Date.now() - startedAt,
+				data,
+				toolResult,
+			};
+		}
 		case 'getCurrentDocumentInfo':
 			return await getCurrentDocumentInfo();
 		case 'ensureSchematicPage':

@@ -67,7 +67,7 @@ Bridge 服务至少需要：
 
 ## 快速手工验证（可选：websocat）
 
-如果你只是想“先验证扩展能连上 / 能收发 RPC”，可以用单文件工具 `websocat` 临时充当 WS 服务端（更适合手工调试，不适合作为长期 Bridge）：
+如果你只是想“先验证扩展能连上 / 能收发 RPC”，或者希望用 **短驻/一次性** 的方式临时跑一个 WS 服务端，可以用单文件工具 `websocat`：
 
 ```bash
 websocat -t ws-l:127.0.0.1:9050 -
@@ -77,6 +77,15 @@ websocat -t ws-l:127.0.0.1:9050 -
 
 ```json
 { "type": "request", "id": "1", "method": "ping" }
+```
+
+### 一次性调用示例（推荐给 LLM/脚本）
+
+短驻模式建议在 `request` 上加 `closeAfterResponse: true`，让扩展在回包后主动断开，便于下一次调用复用端口：
+
+```bash
+printf '%s\n' '{"type":"request","id":"1","method":"ping","closeAfterResponse":true}' \
+  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
 ## 建议的 HTTP API（给 LLM / curl）

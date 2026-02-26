@@ -20,7 +20,13 @@
 Server -> Extension：
 
 ```json
-{ "type": "request", "id": "uuid", "method": "schematic.placeDevice", "params": { /* ... */ } }
+{
+  "type": "request",
+  "id": "uuid",
+  "method": "schematic.placeDevice",
+  "params": { /* ... */ },
+  "closeAfterResponse": false
+}
 ```
 
 Extension -> Server（成功）：
@@ -44,6 +50,8 @@ Extension -> Server（失败）：
 - `ping`
 - `showMessage`（优先 toast，不再弹出阻塞式弹窗）
 - `getStatus`
+- `tools.list`（列出 `jlc.*` tools 定义）
+- `tools.call`（按 `name + arguments` 调用 `jlc.*` tools）
 - `getCurrentDocumentInfo`
 - `ensureSchematicPage`
 - `captureRenderedAreaImage`
@@ -80,3 +88,11 @@ Extension -> Server（失败）：
 
 - **连接建立后尽快发一次 `ping`**（或任意请求），用于让扩展确认握手成功
 - 后续建议 **每 ~15s 发送一次 `ping`** 作为 keepalive（否则扩展可能会认为“长时间无 server 请求”而断开并重连）
+
+### 短驻模式（websocat / 一次性调用）
+
+如果你不想维护常驻 Bridge（例如希望“每次调用启动一次 WS 服务端”），可以在 `request` 中设置：
+
+- `closeAfterResponse: true`
+
+扩展会在发送对应 `response` 后主动断开连接，便于下一次短驻启动复用同一端口。

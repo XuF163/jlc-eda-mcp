@@ -68,6 +68,9 @@ type RpcRequest = {
 	id: string;
 	method: string;
 	params?: unknown;
+	// Optional: for short-lived callers (e.g. websocat oneshot).
+	// If true, the extension will disconnect right after responding to this request.
+	closeAfterResponse?: boolean;
 };
 
 type RpcResponse =
@@ -288,23 +291,23 @@ export class BridgeClient {
 		const cfg = loadBridgeConfig();
 		const connectTimeoutMs = 8_000;
 
-			this.#handshakeOk = false;
-			this.#clearHandshakeTimer();
-			this.#lastServerRequestAt = undefined;
+		this.#handshakeOk = false;
+		this.#clearHandshakeTimer();
+		this.#lastServerRequestAt = undefined;
 
-			const runtime = loadRuntimeState();
-			if (runtime && runtime.connectionState !== 'disconnected') {
-				const age = Date.now() - runtime.updatedAt;
-				const trafficAge = runtime.lastServerRequestAt ? Date.now() - runtime.lastServerRequestAt : undefined;
-				// Avoid registering SYS_WebSocket repeatedly across different extension sandboxes.
-				const shouldAssumeAnotherSandboxOwnsConnection =
-					(runtime.connectionState === 'connecting' && age < 12_000) ||
-					(runtime.connectionState === 'connected' && trafficAge !== undefined && trafficAge < 20_000);
-				if (shouldAssumeAnotherSandboxOwnsConnection) {
-					opts.onInfo?.(runtime.connectionState === 'connected' ? 'MCP bridge already connected.' : 'MCP bridge is connecting...');
-					return;
-				}
+		const runtime = loadRuntimeState();
+		if (runtime && runtime.connectionState !== 'disconnected') {
+			const age = Date.now() - runtime.updatedAt;
+			const trafficAge = runtime.lastServerRequestAt ? Date.now() - runtime.lastServerRequestAt : undefined;
+			// Avoid registering SYS_WebSocket repeatedly across different extension sandboxes.
+			const shouldAssumeAnotherSandboxOwnsConnection =
+				(runtime.connectionState === 'connecting' && age < 12_000) ||
+				(runtime.connectionState === 'connected' && trafficAge !== undefined && trafficAge < 20_000);
+			if (shouldAssumeAnotherSandboxOwnsConnection) {
+				opts.onInfo?.(runtime.connectionState === 'connected' ? 'MCP bridge already connected.' : 'MCP bridge is connecting...');
+				return;
 			}
+		}
 
 		this.#pushLog('info', 'connect() called', { serverUrl: cfg.serverUrl });
 
@@ -368,25 +371,33 @@ export class BridgeClient {
 
 				if (!isRpcRequest(msg)) return;
 				this.#markServerTraffic();
-					if (!this.#handshakeOk) {
-						this.#handshakeOk = true;
-						this.#autoBackoffMs = AUTO_BASE_BACKOFF_MS;
-						this.#clearHandshakeTimer();
-						this.#pushLog('info', 'handshake confirmed (first server request)', { method: msg.method });
-						this.#setState('connected');
-						opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
+				if (!this.#handshakeOk) {
+					this.#handshakeOk = true;
+					this.#autoBackoffMs = AUTO_BASE_BACKOFF_MS;
+					this.#clearHandshakeTimer();
+					this.#pushLog('info', 'handshake confirmed (first server request)', { method: msg.method });
+					this.#setState('connected');
+					opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
 				}
 
 				try {
 					const result = await opts.onRequest(msg.method, msg.params);
 					const response: RpcResponse = { type: 'response', id: msg.id, result };
 					(eda as any).sys_WebSocket.send(BridgeClient.SYS_WS_ID, toJson(response));
+					if (msg.closeAfterResponse) {
+						this.#pushLog('info', 'closeAfterResponse requested; disconnecting', { id: msg.id, method: msg.method });
+						setTimeout(() => this.disconnect(), 10);
+					}
 				} catch (err: any) {
 					const code = typeof err?.code === 'string' ? err.code : 'INTERNAL_ERROR';
 					const message = typeof err?.message === 'string' ? err.message : String(err);
 					const data2 = err?.data;
 					const response: RpcResponse = { type: 'response', id: msg.id, error: { code, message, data: data2 } };
 					(eda as any).sys_WebSocket.send(BridgeClient.SYS_WS_ID, toJson(response));
+					if (msg.closeAfterResponse) {
+						this.#pushLog('info', 'closeAfterResponse requested (after error); disconnecting', { id: msg.id, method: msg.method, code });
+						setTimeout(() => this.disconnect(), 10);
+					}
 				}
 			};
 
@@ -513,14 +524,14 @@ export class BridgeClient {
 
 			if (!isRpcRequest(msg)) return;
 			this.#markServerTraffic();
-				if (!this.#handshakeOk) {
-					this.#handshakeOk = true;
-					this.#autoBackoffMs = AUTO_BASE_BACKOFF_MS;
-					this.#clearHandshakeTimer();
-					this.#pushLog('info', 'handshake confirmed (first server request)', { method: msg.method });
-					this.#setState('connected');
-					opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
-				}
+			if (!this.#handshakeOk) {
+				this.#handshakeOk = true;
+				this.#autoBackoffMs = AUTO_BASE_BACKOFF_MS;
+				this.#clearHandshakeTimer();
+				this.#pushLog('info', 'handshake confirmed (first server request)', { method: msg.method });
+				this.#setState('connected');
+				opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
+			}
 
 			const ws = this.#socket;
 			if (!ws) return;
@@ -529,12 +540,20 @@ export class BridgeClient {
 				const result = await opts.onRequest(msg.method, msg.params);
 				const response: RpcResponse = { type: 'response', id: msg.id, result };
 				(ws as any).send(toJson(response));
+				if (msg.closeAfterResponse) {
+					this.#pushLog('info', 'closeAfterResponse requested; disconnecting', { id: msg.id, method: msg.method });
+					setTimeout(() => this.disconnect(), 10);
+				}
 			} catch (err: any) {
 				const code = typeof err?.code === 'string' ? err.code : 'INTERNAL_ERROR';
 				const message = typeof err?.message === 'string' ? err.message : String(err);
 				const data = err?.data;
 				const response: RpcResponse = { type: 'response', id: msg.id, error: { code, message, data } };
 				(ws as any).send(toJson(response));
+				if (msg.closeAfterResponse) {
+					this.#pushLog('info', 'closeAfterResponse requested (after error); disconnecting', { id: msg.id, method: msg.method, code });
+					setTimeout(() => this.disconnect(), 10);
+				}
 			}
 		};
 

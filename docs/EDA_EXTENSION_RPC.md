@@ -5,11 +5,20 @@
 这是 EDA 扩展（在嘉立创 EDA Pro 内运行）对外提供的 **WebSocket RPC 方法**清单。  
 LLM 侧如果想“全量调用 EDA 的任意 API”，优先用 `eda.keys / eda.get / eda.invoke`（字符串路径反射调用）。
 
+> 提示：在 `request` 上可选支持 `closeAfterResponse: true`，用于短驻调用（扩展回包后主动断开，方便下一次调用复用端口）。
+
 ## 1) 基础 / 状态
 
 - `ping` → `{ pong: true, ts }`
 - `showMessage`：`{ message: string }`（尽量用 toast，不弹阻塞弹窗）
 - `getStatus` → `BridgeStatusSnapshot`（扩展侧连接状态快照）
+
+## 1.1) Tools（兼容 jlc.*）
+
+> 这些方法用于在“只有 WebSocket（无 MCP / 无 HTTP Bridge）”的场景下，依然以 `jlc.*` tools 的方式调用能力。
+
+- `tools.list`：列出可用 `jlc.*` tools（name/description/inputSchema）
+- `tools.call`：`{ name: string, arguments?: any }` → 返回结构与 `HTTP /v1/tools/call` 类似
 
 ## 2) 文档 / 视图 / 导出
 
@@ -83,4 +92,3 @@ LLM 侧如果想“全量调用 EDA 的任意 API”，优先用 `eda.keys / eda
 ```json
 { "method": "eda.invoke", "params": { "path": "sch_Document.save" } }
 ```
-
