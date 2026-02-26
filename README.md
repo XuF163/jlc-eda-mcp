@@ -62,6 +62,15 @@ node packages/mcp-server/dist/cli.js --port 9050
 }
 ```
 
+## 版本发布（自动提升 + git tag）
+
+在仓库根目录执行：
+
+- Patch：`npm run release:patch`
+- Minor：`npm run release:minor`
+- Major：`npm run release:major`
+
+以上命令会统一提升版本号（根 `package.json` 为准，同步到各 package 与扩展 `extension.json`），并自动创建 git commit + tag（形如 `v0.0.14`）。
 
 ## 目录结构
 

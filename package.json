@@ -10,9 +10,13 @@
 		"packages/*"
 	],
 	"scripts": {
-		"prebuild": "node ./scripts/sync-versions.mjs",
+		"prebuild": "npm run version:sync",
 		"version:check": "node ./scripts/check-versions.mjs",
-		"version:sync": "node ./scripts/sync-versions.mjs",
+		"version:sync": "node ./scripts/sync-versions.mjs && node ./scripts/sync-lock-versions.mjs",
+		"version": "npm run version:sync && git add package.json package-lock.json packages/mcp-server/package.json packages/eda-extension/package.json packages/eda-extension/extension.json",
+		"release:patch": "npm version patch",
+		"release:minor": "npm version minor",
+		"release:major": "npm version major",
 		"build:mcp": "npm -w packages/mcp-server run build",
 		"build:ext": "npm -w packages/eda-extension run build",
 		"build": "npm run build:mcp && npm run build:ext",

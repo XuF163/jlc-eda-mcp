@@ -11,11 +11,20 @@ async function readJson(path) {
 }
 
 const rootPkgPath = new URL('../package.json', import.meta.url);
+const lockPath = new URL('../package-lock.json', import.meta.url);
 const mcpPkgPath = new URL('../packages/mcp-server/package.json', import.meta.url);
 const edaExtManifestPath = new URL('../packages/eda-extension/extension.json', import.meta.url);
 const edaExtPkgPath = new URL('../packages/eda-extension/package.json', import.meta.url);
 
 const rootPkg = await readJson(rootPkgPath);
+let lock;
+try {
+	lock = await readJson(lockPath);
+} catch (err) {
+	// package-lock.json is optional in some workflows
+	if (!(err && (err.code === 'ENOENT' || err.code === 'ENOTDIR'))) throw err;
+	lock = undefined;
+}
 const mcpPkg = await readJson(mcpPkgPath);
 const edaExtManifest = await readJson(edaExtManifestPath);
 const edaExtPkg = await readJson(edaExtPkgPath);
@@ -31,6 +40,26 @@ if (rootVersion !== edaExtVersion)
 	mismatches.push(`- package.json: ${rootVersion}\n- packages/eda-extension/extension.json: ${edaExtVersion}`);
 if (rootVersion !== edaExtPkgVersion)
 	mismatches.push(`- package.json: ${rootVersion}\n- packages/eda-extension/package.json: ${edaExtPkgVersion}`);
+
+if (lock) {
+	const lockVersion = typeof lock.version === 'string' ? lock.version : undefined;
+	const rootLockVersion = lock?.packages?.['']?.version;
+	const mcpLockVersion = lock?.packages?.['packages/mcp-server']?.version;
+	const edaExtLockVersion = lock?.packages?.['packages/eda-extension']?.version;
+
+	if (lockVersion && rootVersion !== lockVersion) mismatches.push(`- package.json: ${rootVersion}\n- package-lock.json: ${lockVersion}`);
+	if (typeof rootLockVersion === 'string' && rootVersion !== rootLockVersion) {
+		mismatches.push(`- package.json: ${rootVersion}\n- package-lock.json(packages[\"\"]): ${rootLockVersion}`);
+	}
+	if (typeof mcpLockVersion === 'string' && rootVersion !== mcpLockVersion) {
+		mismatches.push(`- package.json: ${rootVersion}\n- package-lock.json(packages[\"packages/mcp-server\"]): ${mcpLockVersion}`);
+	}
+	if (typeof edaExtLockVersion === 'string' && rootVersion !== edaExtLockVersion) {
+		mismatches.push(
+			`- package.json: ${rootVersion}\n- package-lock.json(packages[\"packages/eda-extension\"]): ${edaExtLockVersion}`,
+		);
+	}
+}
 
 if (mismatches.length) {
 	process.stderr.write(
