@@ -8,6 +8,7 @@
 		"zod": "^4.2.1"
 	},
 	"scripts": {
+		"precompile": "node ../../scripts/sync-eda-extension-version-from-changelog.mjs",
 		"compile": "rimraf ./dist/ && ts-node ./config/esbuild.prod.ts",
 		"build": "npm run compile && ts-node ./build/packaged.ts",
 		"typecheck": "tsc -p tsconfig.json --noEmit"
