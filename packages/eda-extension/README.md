@@ -43,7 +43,8 @@ cd skills
 ![alt text](./images/image-6.png)
 强大的原理图精确编辑能力：
 ![alt text](./images/image-7.png)
-
+在立创商城进行元件选型：
+![alt text](./images/image-8.png)
 如果不喜欢用codex用openclaw也是可以的，无需单独配置mcp，直接通过skills强力驱动
 
 ## 快速上手

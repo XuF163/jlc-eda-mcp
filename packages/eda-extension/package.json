@@ -1,8 +1,8 @@
 {
-	"name": "jlceda-mcp-bridge-extension",
-	"version": "0.0.13",
-	"description": "JLCEDA Pro extension bridge for MCP",
-	"author": "local-dev",
+	"name": "jlceda-bridge-extension",
+	"version": "0.0.14",
+	"description": "JLCEDA Pro extension bridge for Agents",
+	"author": "429",
 	"license": "Apache-2.0",
 	"dependencies": {
 		"zod": "^4.2.1"
