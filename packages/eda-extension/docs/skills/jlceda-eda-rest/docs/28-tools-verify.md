@@ -1,6 +1,8 @@
 # Tools：连通性验证（verify）
 
 > 目标：在不依赖 UI 的情况下，验证 “网络名 / 引脚” 是否按预期连通。
+>
+> 传输：下文示例使用 `jlc-eda-mcp/docs/PROTOCOL.md` 的 WebSocket `request`。注意：用 `websocat` 时请发送 **单行 JSON**（见 `../SKILL.md` / `05-http-proxy.md`）。
 
 ## `jlc.schematic.verify_nets`（基于 document source 的兜底验证）
 
@@ -23,23 +25,8 @@
 
 示例（按 pinNumber 验证 VCC 把 U1.1 / U2.1 连在一起）：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{
-    "name": "jlc.schematic.verify_nets",
-    "arguments": {
-      "nets": [
-        {
-          "name": "VCC",
-          "points": [
-            { "ref": "U1.1", "primitiveId": "U1_ID", "pinNumber": "1" },
-            { "ref": "U2.1", "primitiveId": "U2_ID", "pinNumber": "1" }
-          ]
-        }
-      ]
-    }
-  }'
+```json
+{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.schematic.verify_nets","arguments":{"nets":[{"name":"VCC","points":[{"ref":"U1.1","primitiveId":"U1_ID","pinNumber":"1"},{"ref":"U2.1","primitiveId":"U2_ID","pinNumber":"1"}]}]}}}
 ```
 
 ## `jlc.schematic.verify_netlist`（基于 Netlist 的验证，含自动兜底）
@@ -63,23 +50,6 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 
 示例（验证 GND 中至少包含 U1.2 / R1.2）：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{
-    "name": "jlc.schematic.verify_netlist",
-    "arguments": {
-      "netlistType": "JLCEDA",
-      "nets": [
-        {
-          "name": "GND",
-          "endpoints": [
-            { "ref": "U1", "pin": "2" },
-            { "ref": "R1", "pin": "2" }
-          ]
-        }
-      ]
-    }
-  }'
+```json
+{"type":"request","id":"2","method":"tools.call","params":{"name":"jlc.schematic.verify_netlist","arguments":{"netlistType":"JLCEDA","nets":[{"name":"GND","endpoints":[{"ref":"U1","pin":"2"},{"ref":"R1","pin":"2"}]}]}}}
 ```
-

@@ -2,10 +2,11 @@
 
 > 目标：让“读取/编辑原理图”既快又稳，减少 EDA 卡死与 DRC 的噪音报错。
 
-## 调用侧（HTTP）加速
+## 调用侧（WS）加速
 
 - 能并行就并行：
   - `list_components` + `list_wires` + `list_texts` 可并行请求
+- 短驻建议“单次会话多步”：一次 `websocat` 会话发送多条 `request`，避免每一步都触发扩展重连 backoff（见 `05-http-proxy.md`）。
 - 只读当前页：`jlc.schematic.list_components { allSchematicPages:false }`
 - 避免一次性拉太大对象：`jlc.eda.invoke` 建议配 `jsonSafe` 限制深度/数组长度
 
@@ -20,14 +21,6 @@
 
 ## 连接自检
 
-- 状态：`curl -s http://127.0.0.1:9151/v1/status`
-- 连通：`jlc.bridge.ping`
-- 不连：通常是 EDA 扩展未连上 WS（需要检查扩展配置页是否已启用/已自动连接）
-
-## Windows/PowerShell 的 curl 提醒
-
-- PowerShell 的 `curl` 可能是 `Invoke-WebRequest` 的别名，且 `-d '{...}'` 容易转义炸。
-- 建议：
-  - 使用 Git Bash 的 `curl`
-  - 或用 node fetch 写一个小脚本来发 JSON（避免手写转义）
-- 如果 HTTP proxy 启用了 token，记得为 `POST /v1/tools/call` 加 `authorization: Bearer ...` 头。
+- 状态（tools）：`{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.status","arguments":{}}}`
+- 连通（tools）：`{"type":"request","id":"2","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}}}`
+- 不连：通常是 EDA 扩展未连上 WS（检查扩展 `Configure...` 的 URL、权限，以及本机 `9050` 是否被旧进程占用）

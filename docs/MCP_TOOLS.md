@@ -1,6 +1,9 @@
 # MCP Tools
 
-> MCP tools 在 `packages/mcp-server/src/tools/toolRegistry.ts` 中定义。
+> 工具定义的 **source of truth** 在 EDA 扩展侧：`packages/eda-extension/src/tools/toolRegistry.ts`。  
+> 通过 WebSocket RPC 可用 `tools.list / tools.call` 直接列出/调用这些 `jlc.*` tools；legacy `packages/mcp-server` 仅是对同一套工具的封装（MCP stdio / HTTP）。
+
+> 提示：用 `websocat` 发送时，每条 `request` 请保持 **单行 JSON**（否则会被按行拆成多条消息）。
 
 ## 基础
 
@@ -62,42 +65,47 @@
 1) 确保打开原理图图页：
 
 ```json
-{ "tool": "jlc.schematic.ensure_page", "arguments": { "schematicName": "MCP Demo", "pageName": "Sheet1" } }
+{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.schematic.ensure_page","arguments":{"schematicName":"MCP Demo","pageName":"Sheet1"}}}
 ```
 
 2) 搜索器件（例如 “R 0603”）：
 
 ```json
-{ "tool": "jlc.library.search_devices", "arguments": { "key": "R 0603", "limit": 5 } }
+{"type":"request","id":"2","method":"tools.call","params":{"name":"jlc.library.search_devices","arguments":{"key":"R 0603","limit":5}}}
 ```
 
 3) 放置两个器件（把上一步返回的 `uuid/libraryUuid` 填进去）：
 
 ```json
-{ "tool": "jlc.schematic.place_device", "arguments": { "deviceUuid": "DEVICE_UUID", "libraryUuid": "LIB_UUID", "x": 100, "y": 100, "designator": "R1" } }
+{"type":"request","id":"3","method":"tools.call","params":{"name":"jlc.schematic.place_device","arguments":{"deviceUuid":"DEVICE_UUID","libraryUuid":"LIB_UUID","x":100,"y":100,"designator":"R1"}}}
 ```
 
 ```json
-{ "tool": "jlc.schematic.place_device", "arguments": { "deviceUuid": "DEVICE_UUID", "libraryUuid": "LIB_UUID", "x": 300, "y": 100, "designator": "R2" } }
+{"type":"request","id":"4","method":"tools.call","params":{"name":"jlc.schematic.place_device","arguments":{"deviceUuid":"DEVICE_UUID","libraryUuid":"LIB_UUID","x":300,"y":100,"designator":"R2"}}}
 ```
 
 4) 读取引脚坐标（用于确认 pinNumber/pinName）：
 
 ```json
-{ "tool": "jlc.schematic.get_component_pins", "arguments": { "primitiveId": "PRIMITIVE_ID" } }
+{"type":"request","id":"5","method":"tools.call","params":{"name":"jlc.schematic.get_component_pins","arguments":{"primitiveId":"PRIMITIVE_ID"}}}
 ```
 
 5) 连线（示例按 pinNumber 连接）：
 
 ```json
 {
-  "tool": "jlc.schematic.connect_pins",
-  "arguments": {
-    "fromPrimitiveId": "R1_PRIMITIVE_ID",
-    "fromPinNumber": "1",
-    "toPrimitiveId": "R2_PRIMITIVE_ID",
-    "toPinNumber": "1",
-    "net": "NET1"
+  "type": "request",
+  "id": "6",
+  "method": "tools.call",
+  "params": {
+    "name": "jlc.schematic.connect_pins",
+    "arguments": {
+      "fromPrimitiveId": "R1_PRIMITIVE_ID",
+      "fromPinNumber": "1",
+      "toPrimitiveId": "R2_PRIMITIVE_ID",
+      "toPinNumber": "1",
+      "net": "NET1"
+    }
   }
 }
 ```
@@ -108,13 +116,18 @@
 
 ```json
 {
-  "tool": "jlc.schematic.netlabel.attach_pin",
-  "arguments": {
-    "primitiveId": "R1_PRIMITIVE_ID",
-    "pinNumber": "1",
-    "net": "VCC",
-    "direction": "left",
-    "length": 40
+  "type": "request",
+  "id": "7",
+  "method": "tools.call",
+  "params": {
+    "name": "jlc.schematic.netlabel.attach_pin",
+    "arguments": {
+      "primitiveId": "R1_PRIMITIVE_ID",
+      "pinNumber": "1",
+      "net": "VCC",
+      "direction": "left",
+      "length": 40
+    }
   }
 }
 ```
@@ -122,9 +135,9 @@
 6) DRC + 保存：
 
 ```json
-{ "tool": "jlc.schematic.drc", "arguments": { "strict": false, "userInterface": false } }
+{"type":"request","id":"8","method":"tools.call","params":{"name":"jlc.schematic.drc","arguments":{"strict":false,"userInterface":false}}}
 ```
 
 ```json
-{ "tool": "jlc.schematic.save", "arguments": {} }
+{"type":"request","id":"9","method":"tools.call","params":{"name":"jlc.schematic.save","arguments":{}}}
 ```

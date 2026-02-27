@@ -1,62 +1,67 @@
-# HTTP Proxy 端点与鉴权（`/v1/status` / `/v1/tools/*` / `/v1/rpc`）
+# 传输方式与安全（websocat / Legacy HTTP Proxy）
 
-> 目标：用 **curl** 调用本仓库启动的 `jlceda-eda-mcp --http` 本地 REST 代理。
+> 目标：在 **不安装 Node/MCP** 的情况下，让 LLM/脚本通过 WebSocket RPC 直连 EDA 扩展完成自动化。  
+> 协议：`jlc-eda-mcp/docs/PROTOCOL.md`
 
-默认监听：`http://127.0.0.1:9151`（可用 `--http-port` 或环境变量 `JLCEDA_HTTP_PORT` 修改）。
+## 推荐：websocat（WS 直连）
 
-## 鉴权（可选）
+EDA 扩展是 **WebSocket 客户端**，只会连接 `ws://127.0.0.1:<port>`。因此你需要一个本机 WS 服务端让它连上；这里用通用单文件工具 `websocat` 充当该服务端。
 
-如果启动时设置了 `JLCEDA_HTTP_TOKEN`（或 `--http-token`），则所有 HTTP 请求都需要带 token：
+### 1) 交互式（手工调试）
 
-- `-H 'authorization: Bearer YOUR_TOKEN'`  
-  或 `-H 'x-jlceda-token: YOUR_TOKEN'`
-
-## GET：状态与工具列表
-
-1) 状态（桥接是否已连接到 EDA 扩展）：
+启动 WS 服务端并等待扩展连接：
 
 ```bash
-curl -s http://127.0.0.1:9151/v1/status
+websocat -t ws-l:127.0.0.1:9050 -
 ```
 
-2) 列出全部工具（MCP tools 的 HTTP 版本）：
+扩展连上后会先发一条 `hello`。然后你可以粘贴发送一条 `request`（单行 JSON），例如：
+
+```json
+{"type":"request","id":"1","method":"ping"}
+```
+
+### 2) 短驻/一次性（LLM/脚本友好）
+
+把 1 条 `request` 通过 stdin 喂给 `websocat`，并让扩展回包后主动断开（`closeAfterResponse:true`），便于下一次复用端口：
 
 ```bash
-curl -s http://127.0.0.1:9151/v1/tools
+printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
+  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
-## POST：调用工具（推荐，带 inputSchema）
+### 3) 多步调用（一次启动，发多条 request）
 
-统一入口：`POST /v1/tools/call`
+同一次 `websocat` 会话可以发送多条 `request`（每行一条 JSON）。推荐只在最后一条加 `closeAfterResponse:true`：
 
 ```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.document.current", "arguments": {} }'
+printf '%s\n' \
+  '{"type":"request","id":"1","method":"ping"}' \
+  '{"type":"request","id":"2","method":"getStatus","closeAfterResponse":true}' \
+  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
-## POST：直连扩展 RPC（原子化覆盖 `eda-extension` 全部能力）
+> 提示：如果你要让连接保持更久（分钟级），建议按 `jlc-eda-mcp/docs/PROTOCOL.md` 每 ~15s 发一次 `ping`（keepalive）。
 
-统一入口：`POST /v1/rpc`（会把 `method/params` 转发给 `jlc-eda-mcp/packages/eda-extension` 的 RPC handlers）
+## 安全建议（强烈建议）
+
+- 只监听本机：`ws-l:127.0.0.1:9050`（不要绑定 `0.0.0.0` / 不要暴露到局域网/公网）。
+- 确认端口没有被旧进程占用（尤其是 `node.exe` 的 legacy `packages/mcp-server`）：
+  - PowerShell：`netstat -ano | findstr :9050` + `tasklist /fi "pid eq <PID>"`
+- WS 直连默认不做鉴权；如果你需要 token/ACL，请自建 Bridge（参考 `docs/BRIDGE_QUICKSTART.md` 的建议）。
+
+## Legacy：HTTP Proxy（已计划废弃）
+
+如果你强依赖 `curl http://127.0.0.1:9151/v1/*` 这类 HTTP 端点（或想要 `http://127.0.0.1:9050/docs/` 静态入口），只能继续使用旧的 `packages/mcp-server`（Node）：
 
 ```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "ping" }'
+node jlc-eda-mcp/packages/mcp-server/dist/cli.js --port 9050 --http --no-mcp
 ```
 
-- `timeoutMs` 是 HTTP 侧超时（不是每个方法的参数）：
+可选：设置 HTTP token：
 
 ```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "schematic.getNetlist", "params": { "netlistType": "JLCEDA" }, "timeoutMs": 120000 }'
+JLCEDA_HTTP_TOKEN=YOUR_TOKEN node jlc-eda-mcp/packages/mcp-server/dist/cli.js --port 9050 --http --no-mcp
 ```
 
-## PowerShell 的 curl 提醒
-
-PowerShell 里 `curl` 常是 `Invoke-WebRequest` 的别名，且 `-d '{...}'` 转义容易出错。建议：
-
-- 用 Git Bash 的 `curl`
-- 或写一个 node 脚本用 `fetch()` 发 JSON
-
+> 注意：该 HTTP Proxy 方案链路长、效率低、维护成本高，已不再推荐作为默认工作流。

@@ -1,15 +1,15 @@
 # Tools：文档 / 视图 / 导出
 
-> 目标：通过 `/v1/tools/call` 调用文档/导出相关工具。
+> 目标：通过 `tools.call` 调用文档/导出相关工具。
+>
+> 传输：下文示例使用 `jlc-eda-mcp/docs/PROTOCOL.md` 的 WebSocket `request`（单行 JSON）。发送方式见 `../SKILL.md`。
 
 ## `jlc.document.current`（当前焦点文档）
 
 无参数：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.document.current", "arguments": {} }'
+```json
+{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.document.current","arguments":{}}}
 ```
 
 ## `jlc.schematic.ensure_page`（确保原理图图页）
@@ -20,10 +20,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 - `schematicName?: string`
 - `pageName?: string`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.schematic.ensure_page", "arguments": { "schematicName": "MCP Demo", "pageName": "Sheet1" } }'
+```json
+{"type":"request","id":"2","method":"tools.call","params":{"name":"jlc.schematic.ensure_page","arguments":{"schematicName":"MCP Demo","pageName":"Sheet1"}}}
 ```
 
 ## `jlc.view.capture_png`（抓图 PNG）
@@ -36,10 +34,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 - `fileName?: string`
 - `force?: boolean`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.view.capture_png", "arguments": { "zoomToAll": true, "fileName": "capture.png" } }'
+```json
+{"type":"request","id":"3","method":"tools.call","params":{"name":"jlc.view.capture_png","arguments":{"zoomToAll":true,"fileName":"capture.png"}}}
 ```
 
 ## `jlc.document.export_epro2`（导出 `.epro2/.epro`）
@@ -52,10 +48,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 - `fileName?: string`
 - `force?: boolean`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.document.export_epro2", "arguments": { "fileType": ".epro2" } }'
+```json
+{"type":"request","id":"4","method":"tools.call","params":{"name":"jlc.document.export_epro2","arguments":{"fileType":".epro2"}}}
 ```
 
 ## `jlc.document.get_source`（读取文档源码）
@@ -64,9 +58,6 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 
 - `maxChars?: number`（默认 `200000`）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.document.get_source", "arguments": { "maxChars": 200000 } }'
+```json
+{"type":"request","id":"5","method":"tools.call","params":{"name":"jlc.document.get_source","arguments":{"maxChars":200000}}}
 ```
-

@@ -1,7 +1,7 @@
 # Repo-local skills
 
-这些 skills 用来把“如何驱动嘉立创 EDA Pro（通过 `jlceda-eda-mcp` 桥接）”固化成可复用流程，方便 LLM 侧绕过 MCP 工具，直接用 `curl` 调本地 REST API。
+这些 skills 用来把“如何驱动嘉立创 EDA Pro（通过 `jlceda-eda-mcp` 桥接）”固化成可复用流程，方便 LLM 侧在 **不安装 Node/MCP** 的前提下，直接通过 **WebSocket RPC + websocat（短驻）** 调用 `jlc.*` 工具与 `eda.*` 透传能力。
 
 ## Skills
 
-- `jlceda-eda-rest`：启动本地 HTTP 代理 + 用 curl 调用 `jlc.*` 工具；也支持 `POST /v1/rpc` 直连 `eda-extension` 暴露的 RPC 方法（原子化覆盖全部能力）
+- `jlceda-eda-rest`：推荐走 `websocat` 作为本机 WS 服务端（短驻/按需启动），通过 `tools.call` 调用全部 `jlc.*` tools；也可直接调用扩展 RPC（`ping/getStatus/eda.invoke/...`）

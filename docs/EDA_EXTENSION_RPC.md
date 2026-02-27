@@ -18,7 +18,7 @@ LLM 侧如果想“全量调用 EDA 的任意 API”，优先用 `eda.keys / eda
 > 这些方法用于在“只有 WebSocket（无 MCP / 无 HTTP Bridge）”的场景下，依然以 `jlc.*` tools 的方式调用能力。
 
 - `tools.list`：列出可用 `jlc.*` tools（name/description/inputSchema）
-- `tools.call`：`{ name: string, arguments?: any }` → 返回结构与 `HTTP /v1/tools/call` 类似
+- `tools.call`：`{ name: string, arguments?: any }` → 返回结构与 legacy `HTTP /v1/tools/call` 类似
 
 ## 2) 文档 / 视图 / 导出
 

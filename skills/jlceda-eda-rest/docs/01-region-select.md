@@ -1,38 +1,33 @@
 # 原理图区域性选取（Selection → BBox）
 
 > 目标：用“用户当前已选中的图元”来近似表示“用户框选的原理图区域”，并把它转换为 `{minX,minY,maxX,maxY}`（BBox）。
+>
+> 传输：下文示例使用 `jlc-eda-mcp/docs/PROTOCOL.md` 的 WebSocket `request`（单行 JSON）。发送方式见 `../SKILL.md`。
 
 ## 约定
 
 - JLCEDA Pro 暂未发现直接暴露“拖拽框选矩形坐标”的 API。
 - 我们用 **已选中图元 primitiveIds → BBox** 表达“用户关注区域”。
 - 注意：**切换图页 / 重新打开文档会清空选区**，所以读取/编辑要在同一页内连续完成。
-- 如果你启动 HTTP proxy 时配置了 `JLCEDA_HTTP_TOKEN`，则所有 `POST /v1/tools/call` 需要加：`-H 'authorization: Bearer YOUR_TOKEN'`。
 
 ## 最小流程（3 步）
 
 1) 确认当前是原理图图页：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.document.current", "arguments": {} }'
+```json
+{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.document.current","arguments":{}}}
 ```
 
 2) 读取用户当前选中的图元 ID：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.eda.invoke", "arguments": { "path": "sch_SelectControl.getAllSelectedPrimitives_PrimitiveId" } }'
+```json
+{"type":"request","id":"2","method":"tools.call","params":{"name":"jlc.eda.invoke","arguments":{"path":"sch_SelectControl.getAllSelectedPrimitives_PrimitiveId"}}}
 ```
 
 3) 计算这些图元的包围盒（BBox）：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.eda.invoke", "arguments": { "path": "sch_Primitive.getPrimitivesBBox", "args": [ ["PRIMITIVE_ID_1","PRIMITIVE_ID_2"] ] } }'
+```json
+{"type":"request","id":"3","method":"tools.call","params":{"name":"jlc.eda.invoke","arguments":{"path":"sch_Primitive.getPrimitivesBBox","args":[["PRIMITIVE_ID_1","PRIMITIVE_ID_2"]]}}}
 ```
 
 > 把第 2 步返回的 primitiveIds 填到 `args[0]`，返回值形如 `{minX,minY,maxX,maxY}`。

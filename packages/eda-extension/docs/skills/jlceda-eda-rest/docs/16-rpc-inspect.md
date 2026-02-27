@@ -1,6 +1,8 @@
 # RPC：Inspect / 选择 / 调试
 
 > 前置：当前必须在 **原理图图页**（否则会报 `NOT_IN_SCHEMATIC_PAGE`）。
+>
+> 传输：下文示例使用 `jlc-eda-mcp/docs/PROTOCOL.md` 的 WebSocket `request`（单行 JSON）。发送方式见 `../SKILL.md`。
 
 ## `schematic.listComponents`（列出器件/符号类图元）
 
@@ -10,10 +12,8 @@
 - `allSchematicPages?: boolean`（默认 `false`）
 - `limit?: number`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "schematic.listComponents", "params": { "componentType": "part", "limit": 50 } }'
+```json
+{"type":"request","id":"1","method":"schematic.listComponents","params":{"componentType":"part","limit":50}}
 ```
 
 工具等价：`jlc.schematic.list_components`
@@ -25,10 +25,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 - `net?: string`
 - `nets?: string[]`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "schematic.listWires", "params": { "net": "GND" } }'
+```json
+{"type":"request","id":"2","method":"schematic.listWires","params":{"net":"GND"}}
 ```
 
 工具等价：`jlc.schematic.list_wires`
@@ -37,10 +35,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 
 无参数：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "schematic.listTexts" }'
+```json
+{"type":"request","id":"3","method":"schematic.listTexts"}
 ```
 
 工具等价：`jlc.schematic.list_texts`
@@ -51,10 +47,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 
 - `designator: string`（R1/U2…）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "schematic.findByDesignator", "params": { "designator": "R1" } }'
+```json
+{"type":"request","id":"4","method":"schematic.findByDesignator","params":{"designator":"R1"}}
 ```
 
 工具等价：`jlc.schematic.find_by_designator`
@@ -67,10 +61,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 - `clearFirst?: boolean`（默认 `true`）
 - `zoom?: boolean`（默认 `false`）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "schematic.selectPrimitives", "params": { "primitiveIds": ["ID1","ID2"], "zoom": true } }'
+```json
+{"type":"request","id":"5","method":"schematic.selectPrimitives","params":{"primitiveIds":["ID1","ID2"],"zoom":true}}
 ```
 
 工具等价：`jlc.schematic.select`
@@ -86,20 +78,16 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 - `select?: boolean`
 - `zoom?: boolean`（默认 `false`）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "schematic.crossProbeSelect", "params": { "nets": ["VCC"], "highlight": true, "select": true, "zoom": true } }'
+```json
+{"type":"request","id":"6","method":"schematic.crossProbeSelect","params":{"nets":["VCC"],"highlight":true,"select":true,"zoom":true}}
 ```
 
 工具等价：`jlc.schematic.crossprobe_select`
 
 ## `schematic.clearSelection`（清空选择）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "schematic.clearSelection" }'
+```json
+{"type":"request","id":"7","method":"schematic.clearSelection"}
 ```
 
 工具等价：`jlc.schematic.clear_selection`
@@ -110,10 +98,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 
 - `tabId?: string`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "schematic.zoomToAll", "params": {} }'
+```json
+{"type":"request","id":"8","method":"schematic.zoomToAll","params":{}}
 ```
 
 工具等价：`jlc.schematic.zoom_to_all`
@@ -122,19 +108,14 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 
 1) 显示：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "schematic.indicator.show", "params": { "x": 100, "y": 100, "shape": "circle", "r": 20 } }'
+```json
+{"type":"request","id":"9","method":"schematic.indicator.show","params":{"x":100,"y":100,"shape":"circle","r":20}}
 ```
 
 2) 清除：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "schematic.indicator.clear", "params": {} }'
+```json
+{"type":"request","id":"10","method":"schematic.indicator.clear","params":{}}
 ```
 
 工具等价：`jlc.schematic.indicator.show` / `jlc.schematic.indicator.clear`
-

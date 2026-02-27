@@ -1,6 +1,8 @@
 # RPC：网表（Netlist）
 
 > 前置：当前必须在 **原理图图页**（否则会报 `NOT_IN_SCHEMATIC_PAGE`）。
+>
+> 传输：下文示例使用 `jlc-eda-mcp/docs/PROTOCOL.md` 的 WebSocket `request`（单行 JSON）。发送方式见 `../SKILL.md`。
 
 ## `exportSchematicNetlistFile`（导出网表文件）
 
@@ -11,10 +13,8 @@
 - `fileName?: string`
 - `force?: boolean`（默认 `true`）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "exportSchematicNetlistFile", "params": { "netlistType": "JLCEDA" } }'
+```json
+{"type":"request","id":"1","method":"exportSchematicNetlistFile","params":{"netlistType":"JLCEDA"}}
 ```
 
 工具等价：`jlc.schematic.export_netlist`
@@ -25,12 +25,10 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 
 - `netlistType?: string`（默认 `JLCEDA`）
 - `maxChars?: number`（可截断超大网表）
-- `timeoutMs?: number`（默认 `30000`，这是 **方法参数**；HTTP 层也可用请求体顶层 `timeoutMs`）
+- `timeoutMs?: number`（默认 `30000`，这是 **方法参数**）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "schematic.getNetlist", "params": { "netlistType": "JLCEDA", "maxChars": 200000, "timeoutMs": 60000 } }'
+```json
+{"type":"request","id":"2","method":"schematic.getNetlist","params":{"netlistType":"JLCEDA","maxChars":200000,"timeoutMs":60000}}
 ```
 
 说明：
@@ -38,4 +36,3 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 - 如果当前 EDA 版本没有 `eda.sch_Netlist.getNetlist`，会返回 `NOT_SUPPORTED`
 
 工具等价：`jlc.schematic.get_netlist`
-

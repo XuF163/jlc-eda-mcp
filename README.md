@@ -46,18 +46,25 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 ## 已验证能力（开发联调）
 
 - 端到端链路：EDA 扩展连接本机 WebSocket Server（`ws://127.0.0.1:<port>`）；短驻模式可用 `websocat` 监听并收发 RPC。
-- 工具调用：WS RPC 的 `tools.call` 可直接调用全部 `jlc.*` tools；如使用 legacy HTTP Bridge，也可走 `POST /v1/tools/call`。
+- 工具调用：WS RPC 的 `tools.call` 可直接调用全部 `jlc.*` tools（`websocat` 可直接用）；legacy Node Bridge 可选提供 HTTP `POST /v1/tools/call`。
 - 原理图读：`jlc.schematic.list_components / list_wires / list_texts` + `jlc.eda.invoke(sch_SelectControl.* / sch_Primitive.getPrimitivesBBox)` 实现“选区 → BBox → 区域读回”。
 - 原理图写：`jlc.schematic.apply_ir`（SchematicIR v1）支持增补/增量更新；配合分批导线写入可显著降低卡死概率。
 - 器件解析：`jlc.library.search_devices` 用于把型号/关键字解析为 `deviceUuid/libraryUuid`，避免把图元 uuid 误当成器件 uuid 导致异常。
 - 全量 API 透传：`jlc.eda.keys/get/invoke` 可反射调用 `globalThis.eda.*`（高级/有风险，但便于快速覆盖未封装能力）。
 
-## 兼容模式：HTTP REST + Skills（Legacy）
+## Skills（给 LLM 快速上手）
 
 - Skills 入口：`skills/jlceda-eda-rest/SKILL.md`
   - 区域选取/读取/编辑/加速拆分文档：`skills/jlceda-eda-rest/docs/`
 
-启动（在 `jlc-eda-mcp` 目录）：
+这些文档以 **WebSocket request JSON** 为主，不依赖 HTTP/Node：
+
+- 手工：`websocat -t ws-l:127.0.0.1:9050 -`（看到 `hello` 后粘贴发送 JSON）
+- 自动化：参考上面的 `--oneshot` 示例（`closeAfterResponse:true`）
+
+## Legacy：Node Bridge（HTTP REST + MCP + /docs，计划废弃）
+
+如果你强依赖 `curl http://127.0.0.1:9151/v1/*`（或想要 `/docs` 静态入口），只能继续使用旧的 `packages/mcp-server`（Node）：
 
 ```bash
 npm install
@@ -65,7 +72,7 @@ npm run build
 node packages/mcp-server/dist/cli.js --port 9050 --http --no-mcp
 ```
 
-验证：
+验证（HTTP）：
 
 ```bash
 curl -s http://127.0.0.1:9151/v1/status
@@ -89,7 +96,7 @@ EDA 扩展本身是 **WebSocket 客户端**，不会在 EDA 进程内监听 HTTP
 
 ## MCP（stdio）支持程度
 
-- 仍提供 MCP Server（stdio）以便接入通用 MCP 客户端，但仓库的默认示例/文档会优先覆盖 **HTTP + Skills** 的调用方式。
+- 仍提供 MCP Server（stdio）以便接入通用 MCP 客户端，但仓库的默认示例/文档会优先覆盖 **websocat + Skills** 的调用方式。
 - 若要启用 MCP（stdio），不要加 `--no-mcp`：
 
 ```bash
@@ -123,7 +130,7 @@ node packages/mcp-server/dist/cli.js --port 9050
 
 - `packages/mcp-server`：WebSocket Bridge（供 EDA 扩展连接）+ MCP（stdio，可选）+ HTTP REST（可选）
 - `packages/eda-extension`：嘉立创EDA 专业版扩展（桥接执行真实的 `eda.*` API；扩展说明见 `packages/eda-extension/README.md`）
-- `skills/`：面向 LLM 的 Skills（推荐使用 HTTP REST 驱动）
+- `skills/`：面向 LLM 的 Skills（推荐使用 WS/websocat 驱动）
 - `docs/`：协议、工具清单、IR 规范与验证工具等
 
 ## 文档索引

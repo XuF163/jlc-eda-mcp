@@ -1,6 +1,8 @@
 # Tools：Inspect / 选择 / 调试
 
 > 前置：当前必须在 **原理图图页**（否则会报 `NOT_IN_SCHEMATIC_PAGE`）。
+>
+> 传输：下文示例使用 `jlc-eda-mcp/docs/PROTOCOL.md` 的 WebSocket `request`（单行 JSON）。发送方式见 `../SKILL.md`。
 
 ## `jlc.schematic.list_components`（列出器件/符号类图元）
 
@@ -14,10 +16,8 @@
 
 - `part`, `sheet`, `netflag`, `netport`, `nonElectrical_symbol`, `short_symbol`, `netlabel`, `offPageConnector`, `diffPairsFlag`, `block_symbol`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.schematic.list_components", "arguments": { "componentType": "part", "limit": 50 } }'
+```json
+{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.schematic.list_components","arguments":{"componentType":"part","limit":50}}}
 ```
 
 ## `jlc.schematic.list_wires`（列出导线）
@@ -27,20 +27,16 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 - `net?: string`
 - `nets?: string[]`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.schematic.list_wires", "arguments": { "net": "GND" } }'
+```json
+{"type":"request","id":"2","method":"tools.call","params":{"name":"jlc.schematic.list_wires","arguments":{"net":"GND"}}}
 ```
 
 ## `jlc.schematic.list_texts`（列出文本）
 
 无参数：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.schematic.list_texts", "arguments": {} }'
+```json
+{"type":"request","id":"3","method":"tools.call","params":{"name":"jlc.schematic.list_texts","arguments":{}}}
 ```
 
 ## `jlc.schematic.find_by_designator`（按位号查找）
@@ -49,10 +45,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 
 - `designator: string`（R1/U2…）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.schematic.find_by_designator", "arguments": { "designator": "R1" } }'
+```json
+{"type":"request","id":"4","method":"tools.call","params":{"name":"jlc.schematic.find_by_designator","arguments":{"designator":"R1"}}}
 ```
 
 ## `jlc.schematic.select`（按 primitiveId 选择/可选缩放）
@@ -63,10 +57,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 - `clearFirst?: boolean`（默认 `true`）
 - `zoom?: boolean`（默认 `false`）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.schematic.select", "arguments": { "primitiveIds": ["ID1","ID2"], "zoom": true } }'
+```json
+{"type":"request","id":"5","method":"tools.call","params":{"name":"jlc.schematic.select","arguments":{"primitiveIds":["ID1","ID2"],"zoom":true}}}
 ```
 
 ## `jlc.schematic.crossprobe_select`（按 components/pins/nets 交叉选择）
@@ -80,20 +72,16 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 - `select?: boolean`
 - `zoom?: boolean`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.schematic.crossprobe_select", "arguments": { "nets": ["VCC"], "highlight": true, "select": true, "zoom": true } }'
+```json
+{"type":"request","id":"6","method":"tools.call","params":{"name":"jlc.schematic.crossprobe_select","arguments":{"nets":["VCC"],"highlight":true,"select":true,"zoom":true}}}
 ```
 
 ## `jlc.schematic.clear_selection`（清空选择）
 
 无参数：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.schematic.clear_selection", "arguments": {} }'
+```json
+{"type":"request","id":"7","method":"tools.call","params":{"name":"jlc.schematic.clear_selection","arguments":{}}}
 ```
 
 ## `jlc.schematic.zoom_to_all`（缩放到适应全部图元）
@@ -102,28 +90,22 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 
 - `tabId?: string`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.schematic.zoom_to_all", "arguments": {} }'
+```json
+{"type":"request","id":"8","method":"tools.call","params":{"name":"jlc.schematic.zoom_to_all","arguments":{}}}
 ```
 
 ## `jlc.schematic.indicator.show` / `jlc.schematic.indicator.clear`（红色定位标记）
 
 1) 显示（参数：`x/y` 必填；`shape?: "point"|"circle"`；`r?: number`）：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.schematic.indicator.show", "arguments": { "x": 100, "y": 100, "shape": "circle", "r": 20 } }'
+```json
+{"type":"request","id":"9","method":"tools.call","params":{"name":"jlc.schematic.indicator.show","arguments":{"x":100,"y":100,"shape":"circle","r":20}}}
 ```
 
 2) 清除（参数：`tabId?: string`）：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.schematic.indicator.clear", "arguments": {} }'
+```json
+{"type":"request","id":"10","method":"tools.call","params":{"name":"jlc.schematic.indicator.clear","arguments":{}}}
 ```
 
 ## `jlc.schematic.snapshot`（结构化快照）
@@ -134,13 +116,10 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 - `includeWires?: boolean`（默认 `true`）
 - `includeTexts?: boolean`（默认 `true`）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.schematic.snapshot", "arguments": { "includeTexts": true } }'
+```json
+{"type":"request","id":"11","method":"tools.call","params":{"name":"jlc.schematic.snapshot","arguments":{"includeTexts":true}}}
 ```
 
 说明：
 
 - 返回包含 `doc`（当前文档信息）与 `snapshot`（components/wires/texts）的结构化对象，适合 “读回 → 决策 → 增量修改”
-

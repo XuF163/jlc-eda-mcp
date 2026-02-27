@@ -2,7 +2,12 @@
 
 本项目是运行在 **嘉立创 EDA Pro 本地客户端** 内的扩展：`jlceda-mcp-bridge`。  
 它的作用是把 EDA 内部的 `globalThis.eda.*` 能力，通过 **WebSocket RPC** 暴露给外部自动化工具（如 Codex、OpenClaw 等），用于读取/编辑/导出工程并支持脚本化操作。  
-（历史配套的 `packages/mcp-server` 已弃用，见文末备注。）
+（历史配套的 `packages/mcp-server` 已计划废弃；推荐使用 “EDA 扩展 + websocat（短驻）+ skills 文档” 的方式驱动。）
+
+## 环境准备
+
+安装 `websocat`（通用 WebSocket 工具；多平台单文件），安装方式见仓库根 `jlc-eda-mcp/README.md`。
+
 ## 演示
 ![alt text](./images/image.png)
 ![alt text](./images/image-1.png)
@@ -11,9 +16,12 @@
 ```  
 git clone --depth=1 https://github.com/XuF163/jlc-eda-mcp
 cd jlc-eda-mcp
-cd docs
+cd skills
 ```  
-帮助ai通过阅读skills快速学会操作嘉立创eda
+帮助 AI 通过阅读 skills 快速学会操作嘉立创 EDA：
+
+- `skills/jlceda-eda-rest/SKILL.md`
+
 插件扩展会在打开工程时候自动启动：  
 ![alt text](./images/image-3.png)
 选中原理图对象
@@ -28,10 +36,17 @@ cd docs
 如果不喜欢用codex用openclaw也是可以的，无需单独配置mcp，直接通过skills强力驱动
 
 ## 快速上手
-1.安装本插件
-2.扩展管理器-配置 开启外部交互能力
-![alt text](image.png)
-3.启动ai工具
+
+1) 安装本插件（`.eext`）
+2) 扩展管理器 -> 配置：开启外部交互能力（否则 WS/文件导出等会失败）
+![alt text](./images/image.png)
+3) `MCP Bridge -> Configure...`：填写 `ws://127.0.0.1:9050`
+4) 用 `websocat` 一次性验证（扩展回包后会主动断开）：
+
+```bash
+printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
+  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+```
 
 ## 扩展提供的能力（这部分供LLM读取）
 

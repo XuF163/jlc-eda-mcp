@@ -1,6 +1,6 @@
-# 自建 Bridge 快速指南（给 curl / LLM 用）
+# 自建 Bridge 快速指南（WS 必需；HTTP 可选）
 
-这份文档用于指导你在 **不依赖 MCP（stdio）** 的情况下，快速搭建一个“常驻本机”的 Bridge 服务，让 LLM 可以用 `curl`/HTTP 调用 EDA 扩展，从而实现对 `globalThis.eda.*` 的高权限自动化操作。
+这份文档用于指导你在 **不依赖 MCP（stdio）** 的情况下，快速搭建一个 Bridge 服务，让 LLM/脚本通过 WebSocket RPC 调用 EDA 扩展，从而实现对 `globalThis.eda.*` 的高权限自动化操作。
 
 > 背景：EDA 扩展自身是 **WebSocket 客户端**，只会主动连接一个 `ws://127.0.0.1:<port>` 的服务端；扩展并不会在 EDA 进程内监听 HTTP/TCP 端口给 `curl` 直接访问。
 
@@ -31,11 +31,11 @@ Bridge 服务至少需要：
 - 能发送 `request` 并等待对应 `response`（按 `id` 匹配）
 - 做 keepalive（`ping`）
 
-2) **HTTP 入口**（强烈建议，方便 LLM 用 curl）
+2) **HTTP 入口**（可选，方便 `curl` / 旧工作流）
 - `GET /v1/status`：返回是否已连接扩展 + 连接信息
 - `POST /v1/rpc`：把 `{ method, params?, timeoutMs? }` 转成 WS `request` 并返回结果
 
-> 参考实现：本仓库的 `packages/mcp-server` 就是一个 Bridge（WS + HTTP + 可选 MCP）。  
+> 参考实现（legacy）：本仓库的 `packages/mcp-server` 就是一个 Bridge（WS + HTTP + 可选 MCP），但该组件已计划废弃。  
 > 可直接参考 `packages/mcp-server/src/bridge/wsBridge.ts` 与 `packages/mcp-server/src/httpServer.ts`。
 
 ## WebSocket 协议与 keepalive
@@ -88,7 +88,7 @@ printf '%s\n' '{"type":"request","id":"1","method":"ping","closeAfterResponse":t
   | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
-## 建议的 HTTP API（给 LLM / curl）
+## （可选）建议的 HTTP API（给 curl）
 
 ### 1) `GET /v1/status`
 

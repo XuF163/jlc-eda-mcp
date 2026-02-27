@@ -1,6 +1,8 @@
 # Tools：全量 EDA API 透传（高级/危险）
 
 > 目标：通过字符串路径访问 `globalThis.eda` 的任意能力（无需为每个 SDK 方法写 wrapper）。
+>
+> 传输：下文示例使用 `jlc-eda-mcp/docs/PROTOCOL.md` 的 WebSocket `request`（单行 JSON）。发送方式见 `../SKILL.md`。
 
 限制/注意：
 
@@ -16,10 +18,8 @@
 - `jsonSafe?: { maxDepth?, maxArrayLength?, maxObjectKeys?, maxStringLength? }`
 - `timeoutMs?: number`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.eda.keys", "arguments": { "path": "sch_Document" } }'
+```json
+{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.eda.keys","arguments":{"path":"sch_Document"}}}
 ```
 
 ## `jlc.eda.get`（读取值）
@@ -30,10 +30,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 - `jsonSafe?: ...`
 - `timeoutMs?: number`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.eda.get", "arguments": { "path": "sys_Environment.getEditorCurrentVersion" } }'
+```json
+{"type":"request","id":"2","method":"tools.call","params":{"name":"jlc.eda.get","arguments":{"path":"sys_Environment.getEditorCurrentVersion"}}}
 ```
 
 ## `jlc.eda.invoke`（调用函数）
@@ -46,15 +44,10 @@ curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
 - `jsonSafe?: ...`
 - `timeoutMs?: number`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.eda.invoke", "arguments": { "path": "sys_Environment.getEditorCurrentVersion" } }'
+```json
+{"type":"request","id":"3","method":"tools.call","params":{"name":"jlc.eda.invoke","arguments":{"path":"sys_Environment.getEditorCurrentVersion"}}}
 ```
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/tools/call \
-  -H 'content-type: application/json' \
-  -d '{ "name": "jlc.eda.invoke", "arguments": { "path": "sch_Document.save", "args": [] } }'
+```json
+{"type":"request","id":"4","method":"tools.call","params":{"name":"jlc.eda.invoke","arguments":{"path":"sch_Document.save","args":[]}}}
 ```
-

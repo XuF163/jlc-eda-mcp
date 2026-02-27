@@ -1,13 +1,13 @@
 # RPC：文档 / 视图 / 导出
 
+> 传输：下文示例使用 `jlc-eda-mcp/docs/PROTOCOL.md` 的 WebSocket `request`（单行 JSON）。发送方式见 `../SKILL.md`。
+
 ## `getCurrentDocumentInfo`（当前焦点文档）
 
 无参数：
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "getCurrentDocumentInfo" }'
+```json
+{"type":"request","id":"1","method":"getCurrentDocumentInfo"}
 ```
 
 返回：`{ documentType, uuid, tabId, ... }` 或 `undefined`
@@ -22,10 +22,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 - `schematicName?: string`
 - `pageName?: string`
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "ensureSchematicPage", "params": { "schematicName": "MCP Demo", "pageName": "Sheet1" } }'
+```json
+{"type":"request","id":"2","method":"ensureSchematicPage","params":{"schematicName":"MCP Demo","pageName":"Sheet1"}}
 ```
 
 返回：原理图图页的 `{ documentType:1, uuid, tabId }`
@@ -42,10 +40,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 - `fileName?: string`
 - `force?: boolean`（默认 `true`）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "captureRenderedAreaImage", "params": { "zoomToAll": true, "fileName": "capture.png" } }'
+```json
+{"type":"request","id":"3","method":"captureRenderedAreaImage","params":{"zoomToAll":true,"fileName":"capture.png"}}
 ```
 
 工具等价：`jlc.view.capture_png`
@@ -60,10 +56,8 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 - `fileName?: string`
 - `force?: boolean`（默认 `true`）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "exportDocumentFile", "params": { "fileType": ".epro2" } }'
+```json
+{"type":"request","id":"4","method":"exportDocumentFile","params":{"fileType":".epro2"}}
 ```
 
 工具等价：`jlc.document.export_epro2`
@@ -74,13 +68,10 @@ curl -s -X POST http://127.0.0.1:9151/v1/rpc \
 
 - `maxChars?: number`（默认 `200000`）
 
-```bash
-curl -s -X POST http://127.0.0.1:9151/v1/rpc \
-  -H 'content-type: application/json' \
-  -d '{ "method": "getDocumentSource", "params": { "maxChars": 200000 } }'
+```json
+{"type":"request","id":"5","method":"getDocumentSource","params":{"maxChars":200000}}
 ```
 
 返回：`{ source, truncated, totalChars }`
 
 工具等价：`jlc.document.get_source`
-
