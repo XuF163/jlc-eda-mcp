@@ -97,11 +97,20 @@ jobs:
               await github.rest.git.updateRef({ owner, repo, ref: `tags/${tag}`, sha, force: true })
               core.info(`Updated tag ${tag} -> ${sha}`)
             } catch (e) {
-              if (e.status === 404) {
+              // GitHub returns 422 when ref doesn't exist for updateRef.
+              if (e.status !== 404 && e.status !== 422) throw e
+
+              try {
                 await github.rest.git.createRef({ owner, repo, ref: `refs/tags/${tag}`, sha })
                 core.info(`Created tag ${tag} -> ${sha}`)
-              } else {
-                throw e
+              } catch (e2) {
+                // If it was created concurrently, retry update.
+                if (e2.status === 422) {
+                  await github.rest.git.updateRef({ owner, repo, ref: `tags/${tag}`, sha, force: true })
+                  core.info(`Updated tag ${tag} -> ${sha}`)
+                  return
+                }
+                throw e2
               }
             }
 
