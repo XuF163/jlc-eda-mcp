@@ -26,6 +26,13 @@ websocat -t ws-l:127.0.0.1:9050 -
 把 1 条 `request` 通过 stdin 喂给 `websocat`，并让扩展回包后主动断开（`closeAfterResponse:true`），便于下一次复用端口：
 
 ```bash
+printf '%s\n' '{"type":"request","id":"1","method":"ping","closeAfterResponse":true}' \
+  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+```
+
+（可选）验证 `jlc.*` tools（skills 依赖；需要扩展支持 `tools.call`）：
+
+```bash
 printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
   | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```

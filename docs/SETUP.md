@@ -43,11 +43,18 @@ npm -w packages/eda-extension run build
 临时启动一个 WS 服务端，等待扩展连接，发 1 次请求并要求回包后断开：
 
 ```bash
-printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
+printf '%s\n' '{"type":"request","id":"1","method":"ping","closeAfterResponse":true}' \
   | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
 输出会包含扩展的 `hello` 与本次 `response`。
+
+（可选）验证 `jlc.*` tools（需要扩展支持 `tools.call`）：
+
+```bash
+printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
+  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+```
 
 ### 5) 避免“误用旧 mcp-server”占用端口（重要）
 

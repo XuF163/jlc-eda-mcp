@@ -2,16 +2,21 @@
 
 本项目是运行在 **嘉立创 EDA Pro 本地客户端** 内的扩展：`jlceda-mcp-bridge`。  
 它的作用是把 EDA 内部的 `globalThis.eda.*` 能力，通过 **WebSocket RPC** 暴露给外部自动化工具（如 Codex、OpenClaw 等），用于读取/编辑/导出工程并支持脚本化操作。  
-（历史配套的 `packages/mcp-server` 已计划废弃；推荐使用 “EDA 扩展 + websocat（短驻）+ skills 文档” 的方式驱动。）
+历史配套的 `packages/mcp-server` 已计划废弃；推荐使用 “websocat+ skills 文档” 的方式驱动。
 
 ## 环境准备
 
-安装 `websocat`（通用 WebSocket 工具；多平台单文件），安装方式见仓库根 `jlc-eda-mcp/README.md`。
+使用您喜爱的包管理器安装 websocat：
+```
+cargo install websocat
+```
+推荐使用git-bash作为终端  
 
 ## 演示
 ![alt text](./images/image.png)
 ![alt text](./images/image-1.png)
 ![alt text](./images/image-2.png)
+
 使用时请先：  
 ```  
 git clone --depth=1 https://github.com/XuF163/jlc-eda-mcp
@@ -37,18 +42,34 @@ cd skills
 
 ## 快速上手
 
-1) 安装本插件（`.eext`）
+1) 安装本插件
 2) 扩展管理器 -> 配置：开启外部交互能力（否则 WS/文件导出等会失败）
 ![alt text](./images/image.png)
-3) `MCP Bridge -> Configure...`：填写 `ws://127.0.0.1:9050`
+3) `MCP Bridge -> Configure...`：已预填写 `ws://127.0.0.1:9050`
 4) 用 `websocat` 一次性验证（扩展回包后会主动断开）：
+
+```bash
+printf '%s\n' '{"type":"request","id":"1","method":"ping","closeAfterResponse":true}' \
+  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+```
+预期输出包含扩展的 `hello` 与本次 `response`（示例）：
+```
+{"type":"hello","app":{"name":"jlceda-mcp-bridge","version":"0.0.13","edaVersion":"3.2.91"}}
+{"type":"response","id":"1","result":{"pong":true,"ts":1234567890}}
+```
+
+（可选）验证 `jlc.*` tools（skills 依赖；需要扩展支持 `tools.call`）：
 
 ```bash
 printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
   | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
-## 扩展提供的能力（这部分供LLM读取）
+> 如果返回 `METHOD_NOT_FOUND: tools.call`，说明安装的扩展版本过旧或未更新，请重装最新 `.eext`。
+
+
+
+## 扩展提供的能力（这部分供LLM读取，人类可以不看）
 
 扩展侧对外暴露的 RPC 方法清单在：
 
@@ -109,27 +130,8 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 - 路径只支持点号分段，且禁止 `__proto__/prototype/constructor`
 
 ## 使用方法（安装与联调）
-
-完整端到端的安装/启动流程请优先看：`jlc-eda-mcp/docs/SETUP.md`。  
+  
 这里给出扩展侧的最小流程说明。
-
-### 1) 构建扩展包（生成 `.eext`）
-
-在仓库根目录（`jlc-eda-mcp`）：
-
-```bash
-npm -w packages/eda-extension run build
-```
-
-生成产物目录：
-
-- `packages/eda-extension/build/dist/`
-
-文件名形如：
-
-- `jlceda-mcp-bridge_v0.0.13.eext`
-
-> 版本号来自 `extension.json` 的 `version` 字段。
 
 ### 2) 安装到 JLCEDA Pro
 

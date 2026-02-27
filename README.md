@@ -37,11 +37,18 @@ cargo install websocat
 下面命令会临时启动一个 WS 服务端，等待扩展连接后发送 1 次请求，并要求扩展回包后主动断开（便于下一次调用复用端口）。
 
 ```bash
-printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
+printf '%s\n' '{"type":"request","id":"1","method":"ping","closeAfterResponse":true}' \
   | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
 > 输出会包含扩展的 `hello` 与本次 `response`。建议仅监听 `127.0.0.1`，不要暴露到局域网/公网。
+
+（可选）验证 `jlc.*` tools（需要扩展支持 `tools.list/tools.call`；若返回 `METHOD_NOT_FOUND: tools.call`，请重装最新扩展）：
+
+```bash
+printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
+  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+```
 
 ## 已验证能力（开发联调）
 

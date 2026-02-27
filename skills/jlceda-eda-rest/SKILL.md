@@ -33,11 +33,18 @@ websocat -t ws-l:127.0.0.1:9050 -
 把一条 WS `request`（单行 JSON）通过 stdin 喂给 `websocat`，并让扩展回包后主动断开（`closeAfterResponse:true`）：
 
 ```bash
-printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
+printf '%s\n' '{"type":"request","id":"1","method":"ping","closeAfterResponse":true}' \
   | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
 > 注意：`websocat` 会一直等到扩展连上才会发送；若扩展在重连 backoff 中，可能需要等待几十秒。
+
+（可选）验证 `jlc.*` tools（skills 依赖；需要扩展支持 `tools.call`；若返回 `METHOD_NOT_FOUND: tools.call`，请重装最新扩展）：
+
+```bash
+printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
+  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+```
 
 ## 验证“未使用旧 mcp-server”（重要）
 
