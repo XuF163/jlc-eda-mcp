@@ -6,6 +6,8 @@
 ---
 [危险行动]如需使用本扩展 请自行做好项目文件备份工作，强烈建议使用沙箱操作，由于AI能力问题导致的删库、软件崩溃等问题，本人概不负责
 
+## 项目背景与意义  
+便于用户复用现有AI订阅对EDA软件进行操作，无需额外配置api key
 
 ## 环境准备
 
@@ -15,15 +17,17 @@
 cargo install websocat
 # 使用 Homebrew 安装 
 brew install websocat
-```
+```  
 推荐使用git bash作为终端，部分模型在powershell下可能表现不佳
+安装验证：终端输入 websocat --version应显示有版本号
+
 
 ## 演示
 ![alt text](./images/image.png)
 ![alt text](./images/image-1.png)
 ![alt text](./images/image-2.png)
 
-使用时请先：  
+（非必选 直接发文档地址也可)用时请先：  
 ```  
 git clone --depth=1 https://github.com/XuF163/jlc-eda-mcp
 cd jlc-eda-mcp
@@ -31,6 +35,7 @@ cd skills
 ```  
 推荐 AI 通过阅读 skills 了解本项目，快速学会操作嘉立创 EDA：
 
+- 新接入/零上下文：`docs/welcome_new_agent.md`
 - `skills/jlceda-eda-rest/SKILL.md`
 
 插件扩展会在打开工程时候自动启动：  
@@ -184,3 +189,7 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 - 仅支持 **JSON 可序列化** 参数与返回（结果会做 json-safe 截断/去环）
 - 无法跨桥传函数/回调，因此“事件监听/回调注册”类 API 不适用
 - 路径只支持点号分段，且禁止 `__proto__/prototype/constructor`
+
+
+## 开源许可 
+AGPLv3

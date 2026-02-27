@@ -87,4 +87,4 @@ node packages/mcp-server/dist/cli.js --port 9050
 </details>  
 
 ## 开源许可  
-apache-2.0 继承自[嘉立创官方sdk](https://github.com/easyeda/pro-api-sdk)
+AGPLv3
