@@ -57,28 +57,22 @@ jobs:
           echo "CURRENT_TAG=v${CURRENT}" >> "$GITHUB_ENV"
           echo "PREVIOUS_TAG=v${PREVIOUS}" >> "$GITHUB_ENV"
 
-      - name: Verify versions in repo match changelog
+      - name: Sync versions from changelog
         shell: bash
         run: |
           node - <<'NODE'
-          const current = process.env.CURRENT_VERSION
-          const root = require('./package.json').version
-          const extManifest = require('./packages/eda-extension/extension.json').version
-          const extPkg = require('./packages/eda-extension/package.json').version
+          const fs = require('node:fs')
+          const nextVersion = process.env.CURRENT_VERSION
+          if (!nextVersion) throw new Error('Missing CURRENT_VERSION')
 
-          const mismatches = []
-          if (root !== current) mismatches.push(`root package.json (${root}) != CHANGELOG (${current})`)
-          if (extManifest !== current) mismatches.push(`packages/eda-extension/extension.json (${extManifest}) != CHANGELOG (${current})`)
-          if (extPkg !== current) mismatches.push(`packages/eda-extension/package.json (${extPkg}) != CHANGELOG (${current})`)
-
-          if (mismatches.length) {
-            console.error('Version mismatch:\\n- ' + mismatches.join('\\n- '))
-            process.exit(1)
-          }
-
-          console.log('Versions OK:', current)
+          const path = 'package.json'
+          const raw = fs.readFileSync(path, 'utf8')
+          const next = raw.replace(/"version"\s*:\s*"[^"]*"/, `"version": "${nextVersion}"`)
+          if (next !== raw) fs.writeFileSync(path, next, 'utf8')
+          console.log('Root version ->', nextVersion)
           NODE
 
+          npm run version:sync
           node ./scripts/check-versions.mjs
 
       - name: Update current version tag to HEAD
@@ -120,8 +114,8 @@ jobs:
       - name: Prepare asset
         shell: bash
         run: |
-          SRC="packages/eda-extension/build/dist/jlceda-mcp-bridge_v${CURRENT_VERSION}.eext"
-          ASSET="jlceda-mcp-bridge_preview.eext"
+          ASSET="jlceda-mcp-bridge_v${CURRENT_VERSION}.eext"
+          SRC="packages/eda-extension/build/dist/${ASSET}"
 
           if [[ ! -f "$SRC" ]]; then
             echo "Missing asset: $SRC" >&2
@@ -154,7 +148,7 @@ jobs:
             if (!assetPath) throw new Error('Missing EEXT_ASSET')
             if (!fs.existsSync(assetPath)) throw new Error(`Asset not found: ${assetPath}`)
 
-            const assetName = 'jlceda-mcp-bridge_preview.eext'
+            const assetName = `jlceda-mcp-bridge_v${version}.eext`
             const now = new Date().toISOString()
             const body = [
               `Preview build for \`${version}\`.`,
