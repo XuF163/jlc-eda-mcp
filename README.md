@@ -89,7 +89,7 @@ curl -s http://127.0.0.1:9151/v1/status
 
 - `http://127.0.0.1:9050/docs/`
 
-## 自建 Bridge（不依赖 MCP）
+## （弃用）自建 Bridge（不依赖 MCP）
 
 EDA 扩展本身是 **WebSocket 客户端**，不会在 EDA 进程内监听 HTTP/TCP 端口；因此无论你是否使用 MCP（stdio），都需要一个本机 **WS 服务端**（可常驻，也可像 `websocat` 一样短驻/按需启动）来：
 
