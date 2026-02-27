@@ -3,9 +3,12 @@
 本文件记录 `packages/eda-extension`（JLCEDA Pro 扩展：`jlceda-mcp-bridge`）的更新情况。  
 版本号与扩展清单一致：`extension.json` / `package.json`。
 
+## 0.0.15 - 2062-02-27  
+- ci测试
+
 ## 0.0.14 - 2026-02-27
 
-- 弃用本地 `mcp-server`（Node），改用 `websocat` 作为短驻/一次性 WS Server 与扩展交互；优势：安装轻量、跨平台、无需 Node、调试更直观、维护成本更低
+- 弃用本地 `mcp-server`（Node），改用 `websocat` 作为短驻/ WS Server 与扩展交互
 
 ## 0.0.13 - 2026-02-22
 
