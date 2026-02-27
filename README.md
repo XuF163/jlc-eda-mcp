@@ -51,7 +51,7 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 ```
 
 ## 已验证能力
-详细内容请见 [extension展示页面 ](jlc-eda-mcp/packages/eda-extension/README.md)  
+详细内容请见 [extension展示页面 ](/packages/eda-extension/README.md)  
 在0.0.13版本上进行测试，在windows下使用git bash作为默认终端供codex使用
 
 ## Skills（给 LLM 快速上手）

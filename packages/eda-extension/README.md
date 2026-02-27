@@ -24,9 +24,9 @@ brew install websocat
 
 
 ## 演示
-![alt text](./images/image.png)
-![alt text](./images/image-1.png)
-![alt text](./images/image-2.png)
+<img src="./images/image.png" alt="alt text" width="532" />
+<img src="./images/image-1.png" alt="alt text" width="700" />
+<img src="./images/image-2.png" alt="alt text" width="700" />
 
 （非必选 直接发文档地址也可)用时请先：  
 ```  
@@ -39,25 +39,27 @@ cd skills
 - 新接入/零上下文：`docs/welcome_new_agent.md`
 - `skills/jlceda-eda-rest/SKILL.md`
 
-插件扩展会在打开工程时候自动启动：  
-![alt text](./images/image-3.png)
+插件扩展会在打开工程时候自动启动：    
+<img src="./images/image-3.png" alt="alt text" width="610" />
 选中原理图对象
-![alt text](./images/image-4.png) 
-我用的vscode中的codex插件，原理图读取功能展示如下：
+<img src="./images/image-4.png" alt="alt text" width="700" />
 
-![alt text](./images/image-5.png)
-![alt text](./images/image-6.png)
+我用的vscode中的codex插件，原理图读取功能展示如下：  
+
+
+<img src="./images/image-5.png" alt="alt text" width="700" />
+<img src="./images/image-6.png" alt="alt text" width="700" />
 强大的原理图精确编辑能力：
-![alt text](./images/image-7.png)
+<img src="./images/image-7.png" alt="alt text" width="700" />
 在立创商城进行元件选型：
-![alt text](./images/image-8.png)
+<img src="./images/image-8.png" alt="alt text" width="700" />
 如果不喜欢用codex用openclaw也是可以的，无需单独配置mcp，直接通过skills强力驱动
 
 ## 快速上手
 >警告：请在测试环境中使用，用于生产环境造成的一切后果自负，如有异议，请联系大模型提供方
 1) 安装本插件
 2) 扩展管理器 -> 配置：开启外部交互能力（否则 WS/文件导出等会失败）
-![alt text](./images/image.png)
+<img src="./images/image.png" alt="alt text" width="532" />
 3) `MCP Bridge -> Configure...`：已预填写 `ws://127.0.0.1:9050`
 4) 用 `websocat` 一次性验证（扩展回包后会主动断开）：
 
@@ -67,7 +69,7 @@ printf '%s\n' '{"type":"request","id":"1","method":"ping","closeAfterResponse":t
 ```
 预期输出包含扩展的 `hello` 与本次 `response`（示例）：
 
-![alt text](./images/websocat-ping-output.png)
+<img src="./images/websocat-ping-output.png" alt="alt text" width="700" />
 
 （可选）验证 `jlc.*` tools
 ```bash
@@ -78,24 +80,24 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 > 如果返回 `METHOD_NOT_FOUND: tools.call`，说明安装的扩展版本过旧或未更新，请重装最新 `.eext`重新安装后建议重启eda    
 
 本扩展应当于你启动一个工程项目时随之拉起，请准备好一个供操作的原理图图页，在多个工程项目同时打开时,可能导致未知的bug，建议关闭所有eda窗口并重新打开，否则可能导致包括但不限于以下现象：
-![alt text](./images/multi-project-warning.png)
+<img src="./images/multi-project-warning.png" alt="alt text" width="700" />
 
 5) 与您的Agent进行简单的对话：  
 
-![alt text](./images/agent-chat-1.png)
-![alt text](./images/agent-chat-2.png)  
+<img src="./images/agent-chat-1.png" alt="alt text" width="676" />
+<img src="./images/agent-chat-2.png" alt="alt text" width="698" />
 
 如果顺利的话，您的agent会开始主动尝试使用websocat 与eda进行交互；若连不上，请检查是否通过项目中的skills进行了引导；若无法跑通，请到项目issues页面进行反馈，需要包含使用的模型、编程工具、本扩展版本、eda版本以及您和模型的完整交互记录
-![alt text](./images/troubleshoot-issues.png)  
+<img src="./images/troubleshoot-issues.png" alt="alt text" width="667" />
 
 
 
 
-6) 打开工程，打开原理图，鼠标框选你的目标元件或模块：
-![alt text](./images/select-region.png)
+6) 打开工程，打开原理图，鼠标框选你的目标元件或模块：  
+<img src="./images/select-region.png" alt="alt text" width="700" />
 
 7) 选中一个模块进行解析只需要简单的命令，例如"读取当前选中区域 分析功能"：
-![alt text](./images/agent-command-read-selection.png)
+<img src="./images/agent-command-read-selection.png" alt="alt text" width="676" />
 
 8) 至此，你已经基本了解本项目的使用方法
 
