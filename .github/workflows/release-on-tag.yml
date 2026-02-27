@@ -17,6 +17,8 @@ permissions:
 
 jobs:
   publish:
+    # Tags created by GitHub Actions (e.g., preview workflow) should not trigger publishing.
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     concurrency:
       group: publish-${{ github.ref }}

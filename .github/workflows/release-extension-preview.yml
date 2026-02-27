@@ -1,0 +1,168 @@
+name: Release EDA Extension (Preview)
+
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - "packages/eda-extension/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/release-extension-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-eda-extension-preview
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Resolve versions (current + previous)
+        id: versions
+        shell: bash
+        run: |
+          CHANGELOG="packages/eda-extension/CHANGELOG.md"
+          mapfile -t VERS < <(grep -Eo '^##[[:space:]]+v?[0-9]+\.[0-9]+\.[0-9]+' "$CHANGELOG" | head -n 2 | sed -E 's/^##[[:space:]]+v?//')
+
+          CURRENT="${VERS[0]}"
+          PREVIOUS="${VERS[1]}"
+
+          if [[ -z "$CURRENT" ]]; then
+            echo "Failed to parse current version from ${CHANGELOG}" >&2
+            exit 1
+          fi
+          if [[ -z "$PREVIOUS" ]]; then
+            echo "Failed to parse previous version from ${CHANGELOG} (need at least 2 version sections)" >&2
+            exit 1
+          fi
+
+          echo "current=${CURRENT}" >> "$GITHUB_OUTPUT"
+          echo "previous=${PREVIOUS}" >> "$GITHUB_OUTPUT"
+
+          echo "CURRENT_VERSION=${CURRENT}" >> "$GITHUB_ENV"
+          echo "PREVIOUS_VERSION=${PREVIOUS}" >> "$GITHUB_ENV"
+          echo "CURRENT_TAG=v${CURRENT}" >> "$GITHUB_ENV"
+          echo "PREVIOUS_TAG=v${PREVIOUS}" >> "$GITHUB_ENV"
+
+      - name: Verify versions in repo match changelog
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const current = process.env.CURRENT_VERSION
+          const root = require('./package.json').version
+          const extManifest = require('./packages/eda-extension/extension.json').version
+          const extPkg = require('./packages/eda-extension/package.json').version
+
+          const mismatches = []
+          if (root !== current) mismatches.push(`root package.json (${root}) != CHANGELOG (${current})`)
+          if (extManifest !== current) mismatches.push(`packages/eda-extension/extension.json (${extManifest}) != CHANGELOG (${current})`)
+          if (extPkg !== current) mismatches.push(`packages/eda-extension/package.json (${extPkg}) != CHANGELOG (${current})`)
+
+          if (mismatches.length) {
+            console.error('Version mismatch:\\n- ' + mismatches.join('\\n- '))
+            process.exit(1)
+          }
+
+          console.log('Versions OK:', current)
+          NODE
+
+          node ./scripts/check-versions.mjs
+
+      - name: Skip if current tag already exists
+        id: tagcheck
+        shell: bash
+        run: |
+          if git rev-parse -q --verify "refs/tags/${CURRENT_TAG}" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag exists (${CURRENT_TAG}), skip preview release." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build EDA extension
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: npm run build:ext
+
+      - name: Prepare asset
+        if: steps.tagcheck.outputs.exists == 'false'
+        shell: bash
+        run: |
+          ASSET="jlceda-mcp-bridge_v${CURRENT_VERSION}.eext"
+          SRC="packages/eda-extension/build/dist/${ASSET}"
+
+          if [[ ! -f "$SRC" ]]; then
+            echo "Missing asset: $SRC" >&2
+            ls -la packages/eda-extension/build/dist || true
+            exit 1
+          fi
+
+          mkdir -p artifacts
+          cp "$SRC" "artifacts/${ASSET}"
+          echo "EEXT_ASSET=artifacts/${ASSET}" >> "$GITHUB_ENV"
+          echo "Built: artifacts/${ASSET}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create Preview GitHub Release (current)
+        if: steps.tagcheck.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.CURRENT_TAG }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ env.CURRENT_TAG }} (Preview)
+          prerelease: true
+          generate_release_notes: true
+          files: ${{ env.EEXT_ASSET }}
+          fail_on_unmatched_files: true
+
+      - name: Promote previous version to Stable
+        if: steps.tagcheck.outputs.exists == 'false'
+        uses: actions/github-script@v7
+        env:
+          PREVIOUS_TAG: ${{ env.PREVIOUS_TAG }}
+        with:
+          script: |
+            const tag = process.env.PREVIOUS_TAG
+            const { owner, repo } = context.repo
+
+            try {
+              const { data } = await github.rest.repos.getReleaseByTag({ owner, repo, tag })
+
+              if (!data.prerelease && data.name === tag) {
+                core.info(`${tag} already stable`)
+                return
+              }
+
+              await github.rest.repos.updateRelease({
+                owner,
+                repo,
+                release_id: data.id,
+                prerelease: false,
+                name: tag,
+              })
+
+              core.info(`Promoted ${tag} to stable`)
+            } catch (e) {
+              if (e.status === 404) {
+                core.info(`No release for ${tag}; skip promotion`)
+                return
+              }
+              throw e
+            }
