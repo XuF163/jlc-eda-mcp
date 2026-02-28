@@ -10,27 +10,43 @@
 - 我们用 **已选中图元 primitiveIds → BBox** 表达“用户关注区域”。
 - 注意：**切换图页 / 重新打开文档会清空选区**，所以读取/编辑要在同一页内连续完成。
 
-## 最小流程（3 步）
+## 最小流程（3 步，推荐 RPC）
 
 1) 确认当前是原理图图页：
 
 ```json
-{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.document.current","arguments":{}}}
+{"type":"request","id":"1","method":"getCurrentDocumentInfo"}
 ```
 
 2) 读取用户当前选中的图元 ID：
 
 ```json
-{"type":"request","id":"2","method":"tools.call","params":{"name":"jlc.eda.invoke","arguments":{"path":"sch_SelectControl.getAllSelectedPrimitives_PrimitiveId"}}}
+{"type":"request","id":"2","method":"eda.invoke","params":{"path":"sch_SelectControl.getAllSelectedPrimitives_PrimitiveId","jsonSafe":{"maxArrayLength":2000}}}
 ```
 
 3) 计算这些图元的包围盒（BBox）：
 
 ```json
-{"type":"request","id":"3","method":"tools.call","params":{"name":"jlc.eda.invoke","arguments":{"path":"sch_Primitive.getPrimitivesBBox","args":[["PRIMITIVE_ID_1","PRIMITIVE_ID_2"]]}}}
+{"type":"request","id":"3","method":"eda.invoke","params":{"path":"sch_Primitive.getPrimitivesBBox","args":[["PRIMITIVE_ID_1","PRIMITIVE_ID_2"]]}}
 ```
 
 > 把第 2 步返回的 primitiveIds 填到 `args[0]`，返回值形如 `{minX,minY,maxX,maxY}`。
+
+## 工具等价（`tools.call`）
+
+如果你强依赖 `tools.list/tools.call`（自动 schema 发现），上面 3 步分别等价为：
+
+```json
+{"type":"request","id":"t1","method":"tools.call","params":{"name":"jlc.document.current","arguments":{}}}
+```
+
+```json
+{"type":"request","id":"t2","method":"tools.call","params":{"name":"jlc.eda.invoke","arguments":{"path":"sch_SelectControl.getAllSelectedPrimitives_PrimitiveId","jsonSafe":{"maxArrayLength":2000}}}}
+```
+
+```json
+{"type":"request","id":"t3","method":"tools.call","params":{"name":"jlc.eda.invoke","arguments":{"path":"sch_Primitive.getPrimitivesBBox","args":[["PRIMITIVE_ID_1","PRIMITIVE_ID_2"]]}}}
+```
 
 ## 选区辅助能力（可选）
 

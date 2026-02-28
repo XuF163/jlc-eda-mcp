@@ -12,10 +12,12 @@ EDA 扩展是 **WebSocket 客户端**，只会连接 `ws://127.0.0.1:<port>`。�
 启动 WS 服务端并等待扩展连接：
 
 ```bash
-websocat -t ws-l:127.0.0.1:9050 -
+websocat -B 10485760 -t ws-l:127.0.0.1:9050 -
 ```
 
-> 多窗口/多工程：端口可能不是 `9050`（扩展会在 `9050-9059` 池里自动分配）。请在 EDA 里打开 `MCP Bridge -> Status` 查看该窗口端口，或先连上任意一个端口后调用 `jlc.bridge.port_leases` 获取全量映射。
+> 多窗口/多工程：端口可能不是 `9050`（扩展会在 `9050-9059` 池里自动分配）。  
+> 推荐：按 `../SKILL.md` 的“LLM 自动探测端口”脚本扫描 `9050-9059`，抓到 `hello` 后再连接对应端口（无需用户报端口）；并对照 `hello.project` 校验连的是不是目标窗口。  
+> 兜底：用户也可以在 EDA 里打开 `MCP Bridge -> Status` 查看该窗口端口。
 
 扩展连上后会先发一条 `hello`。然后你可以粘贴发送一条 `request`（单行 JSON），例如：
 
@@ -29,15 +31,20 @@ websocat -t ws-l:127.0.0.1:9050 -
 
 ```bash
 printf '%s\n' '{"type":"request","id":"1","method":"ping","closeAfterResponse":true}' \
-  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+  | websocat -B 10485760 -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
+
+> 注意：当扩展处于 reconnect backoff（上一次连接失败后会等几秒再重试）时，`printf | websocat` 这种 pipeline 可能出现“只看到 `hello` 没有 `response`”。  
+> 处理方式：改用交互式模式（等 `hello` 出现后再发送），或等几秒后重试一次。
 
 （可选）验证 `jlc.*` tools（skills 依赖；需要扩展支持 `tools.call`）：
 
 ```bash
 printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
-  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+  | websocat -B 10485760 -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
+
+> 性能提示：`tools.call` 会同时返回 `data` 与 `toolResult`（重复一份 payload），大图纸更容易超限。大结果优先直接调用 RPC（例如 `schematic.listComponents/listWires/listTexts`）。
 
 ### 3) 多步调用（一次启动，发多条 request）
 
@@ -47,7 +54,7 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 printf '%s\n' \
   '{"type":"request","id":"1","method":"ping"}' \
   '{"type":"request","id":"2","method":"getStatus","closeAfterResponse":true}' \
-  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+  | websocat -B 10485760 -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
 > 提示：如果你要让连接保持更久（分钟级），建议按 `jlc-eda-mcp/docs/PROTOCOL.md` 每 ~15s 发一次 `ping`（keepalive）。

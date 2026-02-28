@@ -1,7 +1,7 @@
 ## JLCEDA  Bridge Extension
 
 本项目是运行在 **嘉立创 EDA Pro 本地客户端** 内的扩展，将 EDA 内部的 `globalThis.eda.*` 能力，通过 **WebSocket RPC** 暴露给外部自动化工具（如 Codex、OpenClaw 等），用于读取/编辑/导出工程并支持脚本化操作。  
-考虑到纯MCP方案使用时的诸多不变，`packages/mcp-server` 已计划废弃；现转向 “websocat+ skills 文档” 的方式驱动。  
+考虑到纯 MCP 方案使用时的诸多不便，`packages/mcp-server` 已计划废弃；现转向 “websocat + skills 文档” 的方式驱动。  
 
 ---
 [危险行动]如需使用本扩展 请自行做好项目文件备份工作，强烈建议使用沙箱操作，由于AI能力问题导致的删库、软件崩溃等问题，本人概不负责；强烈不建议使用上下文短、幻觉强且不负责任的模型；
@@ -24,9 +24,9 @@ brew install websocat
 
 
 ## 演示
-<img src="./images/image.png" alt="alt text" width="532" />
-<img src="./images/image-1.png" alt="alt text" width="700" />
-<img src="./images/image-2.png" alt="alt text" width="700" />
+<img src="./images/image.png" alt="alt text" width="480" />
+<img src="./images/image-1.png" alt="alt text" width="600" />
+<img src="./images/image-2.png" alt="alt text" width="600" />
 
 （非必选 直接发文档地址也可)用时请先：  
 ```  
@@ -40,65 +40,67 @@ cd skills
 - `skills/jlceda-eda-rest/SKILL.md`
 
 插件扩展会在打开工程时候自动启动：    
-<img src="./images/image-3.png" alt="alt text" width="610" />
+<img src="./images/image-3.png" alt="alt text" width="600" />
 选中原理图对象
-<img src="./images/image-4.png" alt="alt text" width="700" />
+<img src="./images/image-4.png" alt="alt text" width="600" />
 
 我用的vscode中的codex插件，原理图读取功能展示如下：  
 
 
-<img src="./images/image-5.png" alt="alt text" width="700" />
-<img src="./images/image-6.png" alt="alt text" width="700" />
+<img src="./images/image-5.png" alt="alt text" width="600" />
+<img src="./images/image-6.png" alt="alt text" width="600" />
 强大的原理图精确编辑能力：
-<img src="./images/image-7.png" alt="alt text" width="700" />
+<img src="./images/image-7.png" alt="alt text" width="600" />
 在立创商城进行元件选型：
-<img src="./images/image-8.png" alt="alt text" width="700" />
+<img src="./images/image-8.png" alt="alt text" width="600" />
+在多个项目中使用：  
+<img src="./images/image-多工程实践.png" alt="alt text" width="600" />
 如果不喜欢用codex用openclaw也是可以的，无需单独配置mcp，直接通过skills强力驱动
 
 ## 快速上手
 >警告：请在测试环境中使用，用于生产环境造成的一切后果自负，如有异议，请联系大模型提供方
 1) 安装本插件
 2) 扩展管理器 -> 配置：开启外部交互能力（否则 WS/文件导出等会失败）
-<img src="./images/image.png" alt="alt text" width="532" />
+<img src="./images/image.png" alt="alt text" width="480" />
 3) `MCP Bridge -> Configure...`：已预填写 `ws://127.0.0.1:9050`
    - 多窗口/多工程：保持端口在 `9050-9059` 范围内即可；扩展会自动协商一个可用端口（每个工程窗口一个端口），并在 `hello`/`Status` 中显示
 4) 用 `websocat` 一次性验证（扩展回包后会主动断开）：
 
 ```bash
 printf '%s\n' '{"type":"request","id":"1","method":"ping","closeAfterResponse":true}' \
-  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+  | websocat -B 10485760 -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 预期输出包含扩展的 `hello` 与本次 `response`（示例）：
 
-<img src="./images/websocat-ping-output.png" alt="alt text" width="700" />
+<img src="./images/websocat-ping-output.png" alt="alt text" width="600" />
 
 （可选）验证 `jlc.*` tools
 ```bash
 printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
-  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+  | websocat -B 10485760 -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
 > 如果返回 `METHOD_NOT_FOUND: tools.call`，说明安装的扩展版本过旧或未更新，请重装最新 `.eext`重新安装后建议重启eda    
 
 本扩展会在你启动工程项目时随之拉起。多工程窗口场景下，扩展会在 `9050-9059` 端口池内自动分配端口（最多 10 个窗口）；若你不确定当前窗口端口，可在 `MCP Bridge -> Status` 查看，或连上任意一个端口后调用 `jlc.bridge.port_leases` 获取全量映射。
-<img src="./images/multi-project-warning.png" alt="alt text" width="700" />
+<img src="./images/multi-project-warning.png" alt="alt text" width="600" />
 
 5) 与您的Agent进行简单的对话：  
 
-<img src="./images/agent-chat-1.png" alt="alt text" width="676" />
-<img src="./images/agent-chat-2.png" alt="alt text" width="698" />
+<img src="./images/agent-chat-1.png" alt="alt text" width="600" />
+<img src="./images/agent-chat-2.png" alt="alt text" width="600" />
 
 如果顺利的话，您的agent会开始主动尝试使用websocat 与eda进行交互；若连不上，请检查是否通过项目中的skills进行了引导；若无法跑通，请到项目issues页面进行反馈，需要包含使用的模型、编程工具、本扩展版本、eda版本以及您和模型的完整交互记录
-<img src="./images/troubleshoot-issues.png" alt="alt text" width="667" />
+<img src="./images/troubleshoot-issues.png" alt="alt text" width="600" />
 
 
 
 
 6) 打开工程，打开原理图，鼠标框选你的目标元件或模块：  
-<img src="./images/select-region.png" alt="alt text" width="700" />
+<img src="./images/select-region.png" alt="alt text" width="600" />
 
 7) 选中一个模块进行解析只需要简单的命令，例如"读取当前选中区域 分析功能"：
-<img src="./images/agent-command-read-selection.png" alt="alt text" width="676" />
+<img src="./images/agent-command-read-selection.png" alt="alt text" width="600" />
 
 8) 至此，你已经基本了解本项目的使用方法
 

@@ -67,7 +67,7 @@ Git Bash / macOS / Linux（需要 Python）：
 
 ```bash
 printf '%s\n' '{"type":"request","id":"1","method":"captureRenderedAreaImage","params":{"zoomToAll":true,"returnBase64":true,"fileName":"capture.png"},"closeAfterResponse":true}' \
-  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 - \
+  | websocat -B 10485760 -t --no-close --oneshot ws-l:127.0.0.1:9050 - \
   | tail -n 1 \
   | python - <<'PY'
 import sys, json, base64
@@ -85,7 +85,7 @@ Windows（PowerShell）：
 
 ```powershell
 $req = '{"type":"request","id":"1","method":"captureRenderedAreaImage","params":{"zoomToAll":true,"returnBase64":true,"fileName":"capture.png"},"closeAfterResponse":true}'
-$json = ($req | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 - | Select-Object -Last 1)
+$json = ($req | websocat -B 10485760 -t --no-close --oneshot ws-l:127.0.0.1:9050 - | Select-Object -Last 1)
 $resp = $json | ConvertFrom-Json
 if ($resp.error) { throw $resp.error.message }
 $name = if ($resp.result.fileName) { $resp.result.fileName } else { 'capture.png' }

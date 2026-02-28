@@ -41,6 +41,16 @@
 
 工具等价：`jlc.schematic.list_texts`
 
+## 返回结构（list*）
+
+这三个 `list*` 方法通常都返回“分页式包装”，不是直接数组：
+
+- `schematic.listComponents` → `{ allSchematicPages, total, items }`
+- `schematic.listWires` → `{ nets, total, items }`
+- `schematic.listTexts` → `{ total, items }`
+
+其中 `items` 才是列表内容；每个 item 一般都包含 `primitiveId`。
+
 ## `schematic.findByDesignator`（按位号查找）
 
 参数：

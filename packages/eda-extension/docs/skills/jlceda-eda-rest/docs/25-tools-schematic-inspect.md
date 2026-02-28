@@ -117,9 +117,10 @@
 - `includeTexts?: boolean`（默认 `true`）
 
 ```json
-{"type":"request","id":"11","method":"tools.call","params":{"name":"jlc.schematic.snapshot","arguments":{"includeTexts":true}}}
+{"type":"request","id":"11","method":"tools.call","params":{"name":"jlc.schematic.snapshot","arguments":{"includeWires":false,"includeTexts":true}}}
 ```
 
 说明：
 
 - 返回包含 `doc`（当前文档信息）与 `snapshot`（components/wires/texts）的结构化对象，适合 “读回 → 决策 → 增量修改”
+- 性能提示：大工程里 `includeWires:true` 可能非常大；建议第 1 轮先 `includeWires:false`（只看器件/文本），需要连通性时再按关键网名用 `jlc.schematic.list_wires { nets:[...] }` 精准拉取

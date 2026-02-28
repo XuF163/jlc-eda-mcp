@@ -8,3 +8,5 @@ npm-debug.log*
 debug.log
 .logs/
 .ace-tool/
+.jlceda-bridge-discover/
+.jlceda-bridge-test/

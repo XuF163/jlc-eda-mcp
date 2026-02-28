@@ -68,14 +68,14 @@ Git Bash / Linux / macOS（最简单）：
 
 ```bash
 printf '%s\n' '{"type":"request","id":"1","method":"ping","closeAfterResponse":true}' \
-  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+  | websocat -B 10485760 -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
 Windows PowerShell（更稳，避免引号转义问题）：
 
 ```powershell
 $req = @{ type='request'; id='1'; method='ping'; closeAfterResponse=$true } | ConvertTo-Json -Compress
-$req | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+$req | websocat -B 10485760 -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
 预期输出包含两段：
@@ -112,16 +112,16 @@ $req | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 
 ```bash
 printf '%s\n' '{"type":"request","id":"1","method":"tools.list","closeAfterResponse":true}' \
-  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+  | websocat -B 10485760 -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
-> 多窗口/多工程：端口可能不是 `9050`，请在 EDA 里打开 `MCP Bridge -> Status` 查看该窗口端口，或先连上任意一个端口后调用 `jlc.bridge.port_leases` 获取全量映射。
+> 多窗口/多工程：端口可能不是 `9050`。推荐先按 `skills/jlceda-eda-rest/SKILL.md` 的“LLM 自动探测端口”脚本扫描 `9050-9059` 抓 `hello`（无需用户报端口）；兜底再让用户在 EDA 里打开 `MCP Bridge -> Status` 查看该窗口端口，或连上任意一个端口后调用 `jlc.bridge.port_leases`。
 
 2) 调用一个工具（示例：`jlc.bridge.ping`）：
 
 ```bash
 printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name":"jlc.bridge.ping","arguments":{}},"closeAfterResponse":true}' \
-  | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
+  | websocat -B 10485760 -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
 常用工具（建议优先用它们）：
@@ -140,16 +140,32 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 
 ## 3) 典型工作流（照抄即可）
 
-### 3.1 读取当前原理图（推荐“快照”）
+### 3.1 读取当前选中区域（最快，推荐）
+
+0) 让用户先在原理图里 **框选/点选** 你要分析的区域（确保“有选区”）。
 
 1) 确保在原理图页：
+   - RPC：`ensureSchematicPage`
    - tool：`jlc.schematic.ensure_page`
-2) 获取结构化快照（LLM 友好）：
-   - tool：`jlc.schematic.snapshot`
 
-优点：你不用解析巨大源文件，也不用猜图元结构。
+2) 按 `skills/jlceda-eda-rest/SKILL.md` 的 **Fast path** 读取：
+   - `eda.invoke sch_SelectControl.getAllSelectedPrimitives_PrimitiveId`（selectedIds）
+   - `schematic.listComponents` / `schematic.listTexts`（取 `result.items`）
+   - 本地用 `primitiveId ∈ selectedIds` 过滤，然后输出“短摘要”（关键器件/网名/电源/接口）
 
-### 3.2 增量补画/改画（推荐 SchematicIR）
+详细说明：`skills/jlceda-eda-rest/docs/02-region-read.md`
+
+优点：只读选区，响应更小更快；通常比全页“快照”稳定很多。
+
+### 3.2 读取全页（慎用：快照）
+
+当你确实需要“整页结构化数据”时才用（大工程可能很大，尤其是 wires）：
+
+- tool：`jlc.schematic.snapshot`（建议第 1 轮先 `includeWires:false`）
+
+需要连通性时，再按关键网名用 `jlc.schematic.list_wires { nets:[...] }` 精准拉取。
+
+### 3.3 增量补画/改画（推荐 SchematicIR）
 
 用 tool：`jlc.schematic.apply_ir`（底层调用 `schematic.applyIr`）
 
@@ -161,7 +177,7 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 2) **永远用稳定 id**：例如 `U1/J1/R1/...`，后续更新同 id 就是“增量修改”  
 3) **不要一上来 clear all**：除非你明确要重画；默认增量 upsert 更安全
 
-### 3.3 器件选型 + 放置 + 连线（低阶编辑）
+### 3.4 器件选型 + 放置 + 连线（低阶编辑）
 
 流程通常是：
 
@@ -170,7 +186,7 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 3) `schematic.getComponentPins` 读引脚信息（pinNumber/pinName/x/y）
 4) `jlc.schematic.connect_pins` 连线（或用 `jlc.schematic.netlabel.attach_pin` 直接打网标）
 
-### 3.4 导出 / 抓图
+### 3.5 导出 / 抓图
 
 常用：
 
@@ -200,7 +216,8 @@ Stop-Process -Id <PID> -Force
 通常原因：
 
 - 你没有真正发出请求（JSON 不是单行 / 引号被终端吃掉）
-- 扩展处于重连 backoff，需要等几十秒才会连上一次
+- 扩展处于重连 backoff，需要等几秒~几十秒才会连上一次
+- 扩展连上得太晚：`printf | websocat` pipeline 可能已把 stdin 消耗完（表现为只看到 `hello`），此时改用交互式模式（等 `hello` 出现后再发送）或稍等后重试
 - 当前不是原理图页，某些方法会直接报错（先 `ensure_page`）
 
 ### 4.3 `NOT_IN_SCHEMATIC_PAGE`
