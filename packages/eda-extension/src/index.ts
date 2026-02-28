@@ -103,15 +103,22 @@ export function mcpDiagnostics(): void {
 }
 
 export async function mcpConfigure(): Promise<void> {
+	ensureAutoConnectStarted();
 	const cfg = loadBridgeConfig();
 
-	const url = await inputText('MCP Bridge', 'WebSocket URL', cfg.serverUrl, { type: 'url', placeholder: 'ws://127.0.0.1:9050' });
+	const status = bridge.getStatusSnapshot();
+	const afterContent = status.port
+		? `当前协商端口: ${status.port}\n当前 serverUrl: ${status.serverUrl}`
+		: `当前 serverUrl: ${status.serverUrl}`;
+	const url = await inputText('MCP Bridge', 'WebSocket URL（保持 9050-9059 范围内可自动分配端口；实际端口看 Status）', cfg.serverUrl, {
+		type: 'url',
+		placeholder: 'ws://127.0.0.1:9050',
+		afterContent,
+	});
 	if (typeof url === 'string' && url.trim()) cfg.serverUrl = url.trim();
 
 	await saveBridgeConfig(cfg);
 	showToast('Saved. Reconnecting...', 'success', 3);
-
-	ensureAutoConnectStarted();
 
 	// Apply immediately: drop current connection and trigger an immediate reconnect attempt.
 	try {
