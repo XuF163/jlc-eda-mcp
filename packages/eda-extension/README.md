@@ -4,21 +4,22 @@
 考虑到纯 MCP 方案使用时的诸多不便，`packages/mcp-server` 已计划废弃；现转向 “websocat + skills 文档” 的方式驱动。  
 
 ---
-[危险行动]如需使用本扩展 请自行做好项目文件备份工作，强烈建议使用沙箱操作，由于AI能力问题导致的删库、软件崩溃等问题，本人概不负责；强烈不建议使用上下文短、幻觉强且不负责任的模型；
+[免责声明]如需使用本扩展 请自行做好项目文件备份工作，强烈建议使用沙箱操作，由于AI能力问题导致的删库、软件崩溃等问题，本人概不负责；强烈不建议使用上下文短、幻觉强且不负责任的模型，目前所有LLM均可能存在幻觉，并在长上下文窗口工作时可能产生效率低下、信息丢失甚至严重的错误
 
-## 项目背景  
+## 项目用途  
 便于用户复用现有便宜大碗的各类coding plan对EDA软件进行操作，无需为价格昂贵的apikey额外付费，更无需面对各类订阅2api项目导致的账号封禁风险
 
 ## 环境准备
 
 使用您喜爱的包管理器安装 websocat：
 ```
-# 使用 cargo 安装
+# 使用 cargo 安装，cargo是Rust的包管理器，如您本地已经安装Rust开发环境，请使用此命令
 cargo install websocat
-# 使用 Homebrew 安装 
+# 使用 Homebrew 安装，如您使用Mac，请使用此命令 
 brew install websocat
 ```  
-推荐使用git bash作为终端，部分模型在powershell下可能表现不佳
+如不使用包管理器，也可自行下载二进制并添加到环境变量  
+即便在windows系统上，本人也推荐使用git bash作为终端供LLM使用，部分模型在powershell下可能表现不佳，本人已多次遭遇删库
 
 安装验证：终端输入 websocat --version应显示有版本号
 
@@ -32,9 +33,9 @@ brew install websocat
 ```  
 git clone --depth=1 https://github.com/XuF163/jlc-eda-mcp
 cd jlc-eda-mcp
-cd skills
+
 ```  
-推荐 AI 通过阅读 skills 了解本项目，快速学会操作嘉立创 EDA：
+推荐 AI 通过阅读 skills 以及 项目完整代码 了解本项目，快速学会操作嘉立创 EDA：
 
 - 新接入/零上下文：`docs/welcome_new_agent.md`
 - `skills/jlceda-eda-rest/SKILL.md`
@@ -58,7 +59,7 @@ cd skills
 如果不喜欢用codex用openclaw也是可以的，无需单独配置mcp，直接通过skills强力驱动
 
 ## 快速上手
->警告：请在测试环境中使用，用于生产环境造成的一切后果自负，如有异议，请联系大模型提供方
+>警告：请在测试环境中使用，用于生产环境造成的一切后果自负，如有异议，请联系模型提供方
 1) 安装本插件
 2) 扩展管理器 -> 配置：开启外部交互能力（否则 WS/文件导出等会失败）
 <img src="./images/image.png" alt="alt text" width="480" />
