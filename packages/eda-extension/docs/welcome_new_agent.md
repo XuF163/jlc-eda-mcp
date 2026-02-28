@@ -115,6 +115,8 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.list","closeAfterRespo
   | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
+> 多窗口/多工程：端口可能不是 `9050`，请在 EDA 里打开 `MCP Bridge -> Status` 查看该窗口端口，或先连上任意一个端口后调用 `jlc.bridge.port_leases` 获取全量映射。
+
 2) 调用一个工具（示例：`jlc.bridge.ping`）：
 
 ```bash
@@ -127,6 +129,7 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 - `jlc.document.current`：当前文档信息（documentType/uuid/tabId）
 - `jlc.schematic.ensure_page`：确保焦点在原理图页（否则很多 API 会报错）
 - `jlc.schematic.snapshot`：结构化快照（components/wires/texts），给 LLM “读图”
+- `jlc.bridge.port_leases`：列出 9050-9059 端口映射（多窗口）
 - `jlc.library.search_devices`：器件库搜索（可用于选型/放置）
 - `jlc.schematic.apply_ir`：用 SchematicIR 批量/增量绘图（最适合 LLM）
 - `jlc.eda.keys/get/invoke`：全量透传（最后手段）

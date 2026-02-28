@@ -9,6 +9,7 @@
 
 - `jlc.status`：桥接连接状态
 - `jlc.bridge.ping`：连通性检查
+- `jlc.bridge.port_leases`：列出 9050-9059 端口租约（多窗口：每个工程窗口一个端口）
 - `jlc.bridge.show_message`：在 EDA 内显示提示（优先 toast；不再弹出阻塞式弹窗）
 
 ## 高级 / 全量 EDA API（危险）

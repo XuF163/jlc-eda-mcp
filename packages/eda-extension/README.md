@@ -61,6 +61,7 @@ cd skills
 2) 扩展管理器 -> 配置：开启外部交互能力（否则 WS/文件导出等会失败）
 <img src="./images/image.png" alt="alt text" width="532" />
 3) `MCP Bridge -> Configure...`：已预填写 `ws://127.0.0.1:9050`
+   - 多窗口/多工程：保持端口在 `9050-9059` 范围内即可；扩展会自动协商一个可用端口（每个工程窗口一个端口），并在 `hello`/`Status` 中显示
 4) 用 `websocat` 一次性验证（扩展回包后会主动断开）：
 
 ```bash
@@ -79,7 +80,7 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 
 > 如果返回 `METHOD_NOT_FOUND: tools.call`，说明安装的扩展版本过旧或未更新，请重装最新 `.eext`重新安装后建议重启eda    
 
-本扩展应当于你启动一个工程项目时随之拉起，请准备好一个供操作的原理图图页，在多个工程项目同时打开时,可能导致未知的bug，建议关闭所有eda窗口并重新打开，否则可能导致包括但不限于以下现象：
+本扩展会在你启动工程项目时随之拉起。多工程窗口场景下，扩展会在 `9050-9059` 端口池内自动分配端口（最多 10 个窗口）；若你不确定当前窗口端口，可在 `MCP Bridge -> Status` 查看，或连上任意一个端口后调用 `jlc.bridge.port_leases` 获取全量映射。
 <img src="./images/multi-project-warning.png" alt="alt text" width="700" />
 
 5) 与您的Agent进行简单的对话：  

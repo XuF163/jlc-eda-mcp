@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { BridgeStatusSnapshot } from '../bridge/wsClient';
+import { listBridgePortLeases } from '../bridge/portLease';
 import { SchematicIrSchema } from '../ir/schematicIr';
 import { applySchematicIr } from '../handlers/applyIr';
 import { captureRenderedAreaImage, ensureSchematicPage, exportDocumentFile, getCurrentDocumentInfo, getDocumentSource } from '../handlers/document';
@@ -283,6 +284,15 @@ export function createToolRegistry(opts: { getStatus: () => BridgeStatusSnapshot
 			run: async (args) => {
 				EmptySchema.parse(args);
 				return asJsonText({ ok: true, result: { pong: true, ts: Date.now() } });
+			},
+		},
+		{
+			name: 'jlc.bridge.port_leases',
+			description: 'List negotiated WS ports (9050-9059) and their current lease holders (multi-window support).',
+			inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+			run: async (args) => {
+				EmptySchema.parse(args);
+				return asJsonText({ ok: true, range: { start: 9050, end: 9059 }, leases: listBridgePortLeases() });
 			},
 		},
 		{

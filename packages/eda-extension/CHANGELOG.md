@@ -3,7 +3,14 @@
 本文件记录 `packages/eda-extension`（JLCEDA Pro 扩展：`jlceda-mcp-bridge`）的更新情况。  
 版本号与扩展清单一致：`extension.json` / `package.json`。
 
-## 0.0.15 - 2062-02-27  
+## 0.0.16 - 2026-02-28
+
+- 多窗口/多工程：自动在 `9050-9059` 端口池内协商可用端口（每个工程窗口一个端口，最多 10 个）
+- 多任务更稳：同一连接内请求串行处理，避免并发调用导致状态竞争
+- 抓图增强：`jlc.view.capture_png` / `captureRenderedAreaImage` 支持 `returnBase64:true` 回传 PNG base64，便于调用方落盘到工作目录
+- 诊断增强：握手 `hello`/Status 增加 `project/server(port)` 信息，新增 `jlc.bridge.port_leases` 便于排查端口映射
+
+## 0.0.15 - 2026-02-27  
 - ci测试
 
 ## 0.0.14 - 2026-02-27

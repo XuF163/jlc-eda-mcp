@@ -1,4 +1,4 @@
-import { asObject, asOptionalNumber, asOptionalString, asString, rpcError } from './validate';
+import { asObject, asOptionalNumber, asOptionalString, rpcError } from './validate';
 
 export type ProjectInfo = {
 	uuid: string;
@@ -9,6 +9,16 @@ export type ProjectInfo = {
 export type PortLeaseInfo = {
 	port: number;
 	project: ProjectInfo;
+};
+
+export type PortLeaseSnapshot = {
+	port: number;
+	projectUuid?: string;
+	projectName?: string;
+	projectFriendlyName?: string;
+	updatedAt?: number;
+	ageMs?: number;
+	expired?: boolean;
 };
 
 const PORT_RANGE_START = 9050;
@@ -38,6 +48,17 @@ function getLeaseKey(port: number): string {
 
 function isLeaseExpired(updatedAt: number, now: number): boolean {
 	return now - updatedAt > LEASE_TTL_MS;
+}
+
+function safeOptionalString(value: unknown): string | undefined {
+	if (typeof value !== 'string') return undefined;
+	const s = value.trim();
+	return s ? s : undefined;
+}
+
+function safeOptionalNumber(value: unknown): number | undefined {
+	if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+	return value;
 }
 
 function parseLease(raw: unknown): { projectUuid: string; updatedAt: number } | undefined {
@@ -158,3 +179,29 @@ export async function resolveBridgeServerUrl(configuredServerUrl: string): Promi
 	return { serverUrl: url.toString(), lease };
 }
 
+export function listBridgePortLeases(): Array<PortLeaseSnapshot> {
+	const now = Date.now();
+	const out: Array<PortLeaseSnapshot> = [];
+	for (let port = PORT_RANGE_START; port <= PORT_RANGE_END; port++) {
+		const raw = eda.sys_Storage.getExtensionUserConfig(getLeaseKey(port));
+		if (!raw) continue;
+		try {
+			const obj = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as any) : undefined;
+			if (!obj) continue;
+
+			const updatedAt = safeOptionalNumber(obj.updatedAt);
+			out.push({
+				port,
+				projectUuid: safeOptionalString(obj.projectUuid),
+				projectName: safeOptionalString(obj.projectName),
+				projectFriendlyName: safeOptionalString(obj.projectFriendlyName),
+				updatedAt,
+				ageMs: updatedAt !== undefined ? now - updatedAt : undefined,
+				expired: updatedAt !== undefined ? isLeaseExpired(updatedAt, now) : undefined,
+			});
+		} catch {
+			// ignore bad record
+		}
+	}
+	return out;
+}

@@ -111,6 +111,7 @@ export class BridgeClient {
 	#serverUrlInUse: string | undefined;
 	#leaseInUse: PortLeaseInfo | undefined;
 	#connectInProgress = false;
+	#requestChain: Promise<void> = Promise.resolve();
 
 	#autoEnabled = false;
 	#autoTimer: any | undefined;
@@ -318,6 +319,16 @@ export class BridgeClient {
 		this.#persistRuntime(false);
 	}
 
+	#enqueueRequest<T>(fn: () => Promise<T>): Promise<T> {
+		const run = async () => await fn();
+		const next = this.#requestChain.then(run, run);
+		this.#requestChain = next.then(
+			() => undefined,
+			() => undefined,
+		);
+		return next;
+	}
+
 	connect(opts: { onRequest: (method: string, params: unknown) => Promise<unknown>; onInfo?: (msg: string) => void }): void {
 		if (this.#connectInProgress) return;
 		if (this.#connectionState === 'connected' || this.#connectionState === 'connecting') {
@@ -353,6 +364,28 @@ export class BridgeClient {
 		}
 
 		const connectTimeoutMs = 8_000;
+		let helloProject: RpcHello['project'] = this.#leaseInUse?.project;
+		if (!helloProject) {
+			try {
+				const info = (await eda.dmt_Project.getCurrentProjectInfo()) as any;
+				const uuid = typeof info?.uuid === 'string' ? info.uuid : undefined;
+				const name = typeof info?.name === 'string' ? info.name : undefined;
+				const friendlyName = typeof info?.friendlyName === 'string' ? info.friendlyName : undefined;
+				if (uuid || name || friendlyName) helloProject = { uuid, name, friendlyName };
+			} catch {
+				// ignore
+			}
+		}
+		let helloPort: number | undefined = this.#leaseInUse?.port;
+		if (!helloPort) {
+			try {
+				const u = new URL(serverUrl);
+				const p = Number(u.port);
+				if (Number.isFinite(p) && p > 0) helloPort = p;
+			} catch {
+				// ignore
+			}
+		}
 
 		this.#handshakeOk = false;
 		this.#clearHandshakeTimer();
@@ -444,25 +477,27 @@ export class BridgeClient {
 					opts.onInfo?.(`Connected to ${serverUrl}`);
 				}
 
-				try {
-					const result = await opts.onRequest(msg.method, msg.params);
-					const response: RpcResponse = { type: 'response', id: msg.id, result };
-					(eda as any).sys_WebSocket.send(BridgeClient.SYS_WS_ID, toJson(response));
-					if (msg.closeAfterResponse) {
-						this.#pushLog('info', 'closeAfterResponse requested; disconnecting', { id: msg.id, method: msg.method });
-						setTimeout(() => this.disconnect(), 10);
+				void this.#enqueueRequest(async () => {
+					try {
+						const result = await opts.onRequest(msg.method, msg.params);
+						const response: RpcResponse = { type: 'response', id: msg.id, result };
+						(eda as any).sys_WebSocket.send(BridgeClient.SYS_WS_ID, toJson(response));
+						if (msg.closeAfterResponse) {
+							this.#pushLog('info', 'closeAfterResponse requested; disconnecting', { id: msg.id, method: msg.method });
+							setTimeout(() => this.disconnect(), 10);
+						}
+					} catch (err: any) {
+						const code = typeof err?.code === 'string' ? err.code : 'INTERNAL_ERROR';
+						const message = typeof err?.message === 'string' ? err.message : String(err);
+						const data2 = err?.data;
+						const response: RpcResponse = { type: 'response', id: msg.id, error: { code, message, data: data2 } };
+						(eda as any).sys_WebSocket.send(BridgeClient.SYS_WS_ID, toJson(response));
+						if (msg.closeAfterResponse) {
+							this.#pushLog('info', 'closeAfterResponse requested (after error); disconnecting', { id: msg.id, method: msg.method, code });
+							setTimeout(() => this.disconnect(), 10);
+						}
 					}
-				} catch (err: any) {
-					const code = typeof err?.code === 'string' ? err.code : 'INTERNAL_ERROR';
-					const message = typeof err?.message === 'string' ? err.message : String(err);
-					const data2 = err?.data;
-					const response: RpcResponse = { type: 'response', id: msg.id, error: { code, message, data: data2 } };
-					(eda as any).sys_WebSocket.send(BridgeClient.SYS_WS_ID, toJson(response));
-					if (msg.closeAfterResponse) {
-						this.#pushLog('info', 'closeAfterResponse requested (after error); disconnecting', { id: msg.id, method: msg.method, code });
-						setTimeout(() => this.disconnect(), 10);
-					}
-				}
+				});
 			};
 
 			const onConnected = () => {
@@ -481,8 +516,8 @@ export class BridgeClient {
 				const hello: RpcHello = {
 					type: 'hello',
 					app: { name: extensionConfig.name, version: extensionConfig.version, edaVersion },
-					project: this.#leaseInUse?.project,
-					server: { url: serverUrl, port: this.#leaseInUse?.port },
+					project: helloProject,
+					server: { url: serverUrl, port: helloPort },
 				};
 				try {
 					(eda as any).sys_WebSocket.send(BridgeClient.SYS_WS_ID, toJson(hello));
@@ -572,8 +607,8 @@ export class BridgeClient {
 			const hello: RpcHello = {
 				type: 'hello',
 				app: { name: extensionConfig.name, version: extensionConfig.version, edaVersion },
-				project: this.#leaseInUse?.project,
-				server: { url: serverUrl, port: this.#leaseInUse?.port },
+				project: helloProject,
+				server: { url: serverUrl, port: helloPort },
 			};
 			(ws as any).send(toJson(hello));
 			this.#pushLog('debug', 'hello sent', { app: hello.app });
@@ -604,25 +639,27 @@ export class BridgeClient {
 			const ws = this.#socket;
 			if (!ws) return;
 
-			try {
-				const result = await opts.onRequest(msg.method, msg.params);
-				const response: RpcResponse = { type: 'response', id: msg.id, result };
-				(ws as any).send(toJson(response));
-				if (msg.closeAfterResponse) {
-					this.#pushLog('info', 'closeAfterResponse requested; disconnecting', { id: msg.id, method: msg.method });
-					setTimeout(() => this.disconnect(), 10);
+			void this.#enqueueRequest(async () => {
+				try {
+					const result = await opts.onRequest(msg.method, msg.params);
+					const response: RpcResponse = { type: 'response', id: msg.id, result };
+					(ws as any).send(toJson(response));
+					if (msg.closeAfterResponse) {
+						this.#pushLog('info', 'closeAfterResponse requested; disconnecting', { id: msg.id, method: msg.method });
+						setTimeout(() => this.disconnect(), 10);
+					}
+				} catch (err: any) {
+					const code = typeof err?.code === 'string' ? err.code : 'INTERNAL_ERROR';
+					const message = typeof err?.message === 'string' ? err.message : String(err);
+					const data = err?.data;
+					const response: RpcResponse = { type: 'response', id: msg.id, error: { code, message, data } };
+					(ws as any).send(toJson(response));
+					if (msg.closeAfterResponse) {
+						this.#pushLog('info', 'closeAfterResponse requested (after error); disconnecting', { id: msg.id, method: msg.method, code });
+						setTimeout(() => this.disconnect(), 10);
+					}
 				}
-			} catch (err: any) {
-				const code = typeof err?.code === 'string' ? err.code : 'INTERNAL_ERROR';
-				const message = typeof err?.message === 'string' ? err.message : String(err);
-				const data = err?.data;
-				const response: RpcResponse = { type: 'response', id: msg.id, error: { code, message, data } };
-				(ws as any).send(toJson(response));
-				if (msg.closeAfterResponse) {
-					this.#pushLog('info', 'closeAfterResponse requested (after error); disconnecting', { id: msg.id, method: msg.method, code });
-					setTimeout(() => this.disconnect(), 10);
-				}
-			}
+			});
 		};
 
 		this.#socket.onerror = () => {

@@ -37,6 +37,12 @@ printf '%s\n' '{"type":"request","id":"1","method":"ping","closeAfterResponse":t
   | websocat -t --no-close --oneshot ws-l:127.0.0.1:9050 -
 ```
 
+> 多窗口 / 多工程：扩展会在 `9050-9059` 端口池里自动协商一个可用端口（每个工程窗口一个端口）。  
+> 你可以：
+>
+> - 在 EDA 里打开 `MCP Bridge -> Status` 查看该窗口实际端口
+> - 或者先连上任意一个端口后，调用 tool `jlc.bridge.port_leases` 获取全量端口映射
+
 > 注意：`websocat` 会一直等到扩展连上才会发送；若扩展在重连 backoff 中，可能需要等待几十秒。
 
 （可选）验证 `jlc.*` tools（skills 依赖；需要扩展支持 `tools.call`；若返回 `METHOD_NOT_FOUND: tools.call`，请重装最新扩展）：

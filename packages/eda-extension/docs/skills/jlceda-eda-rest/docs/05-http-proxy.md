@@ -15,6 +15,8 @@ EDA 扩展是 **WebSocket 客户端**，只会连接 `ws://127.0.0.1:<port>`。�
 websocat -t ws-l:127.0.0.1:9050 -
 ```
 
+> 多窗口/多工程：端口可能不是 `9050`（扩展会在 `9050-9059` 池里自动分配）。请在 EDA 里打开 `MCP Bridge -> Status` 查看该窗口端口，或先连上任意一个端口后调用 `jlc.bridge.port_leases` 获取全量映射。
+
 扩展连上后会先发一条 `hello`。然后你可以粘贴发送一条 `request`（单行 JSON），例如：
 
 ```json
