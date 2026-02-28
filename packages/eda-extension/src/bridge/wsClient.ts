@@ -1,5 +1,6 @@
 import * as extensionConfig from '../../extension.json';
 import { loadBridgeConfig } from './config';
+import { refreshBridgePortLease, resolveBridgeServerUrl, type PortLeaseInfo } from './portLease';
 
 type DebugLogEntry = {
 	ts: number;
@@ -12,6 +13,9 @@ type RuntimeState = {
 	updatedAt: number;
 	connectionState: BridgeStatusSnapshot['connectionState'];
 	transport: BridgeStatusSnapshot['transport'];
+	serverUrl?: string;
+	port?: number;
+	project?: { uuid?: string; name?: string; friendlyName?: string };
 	lastConnectedAt?: number;
 	lastServerRequestAt?: number;
 	lastError?: string;
@@ -51,6 +55,9 @@ export type BridgeStatusSnapshot = {
 	connectionState: 'disconnected' | 'connecting' | 'connected';
 	transport: 'sys_WebSocket' | 'globalWebSocket' | 'none';
 	serverUrl: string;
+	configuredServerUrl: string;
+	port?: number;
+	project?: { uuid?: string; name?: string; friendlyName?: string };
 	lastConnectedAt?: number;
 	lastServerRequestAt?: number;
 	lastError?: string;
@@ -61,6 +68,8 @@ export type BridgeStatusSnapshot = {
 type RpcHello = {
 	type: 'hello';
 	app?: { name?: string; version?: string; edaVersion?: string };
+	project?: { uuid?: string; name?: string; friendlyName?: string };
+	server?: { url?: string; port?: number };
 };
 
 type RpcRequest = {
@@ -98,6 +107,10 @@ export class BridgeClient {
 	#transport: BridgeStatusSnapshot['transport'] = 'none';
 	#registeredUrl: string | undefined;
 	#lastPersistAt = 0;
+	#configuredServerUrl: string | undefined;
+	#serverUrlInUse: string | undefined;
+	#leaseInUse: PortLeaseInfo | undefined;
+	#connectInProgress = false;
 
 	#autoEnabled = false;
 	#autoTimer: any | undefined;
@@ -143,12 +156,17 @@ export class BridgeClient {
 			const storedTransport = runtime.transport;
 			const resolvedTransport =
 				storedTransport && storedTransport !== 'none' ? storedTransport : inferredTransport;
+			const configuredServerUrl = loadBridgeConfig().serverUrl;
+			const runtimeUrl = typeof runtime.serverUrl === 'string' && runtime.serverUrl.trim() ? runtime.serverUrl : configuredServerUrl;
 			return {
 				extension: { name: extensionConfig.name, version: extensionConfig.version },
 				connected: runtime.connectionState === 'connected',
 				connectionState: runtime.connectionState,
 				transport: resolvedTransport,
-				serverUrl: loadBridgeConfig().serverUrl,
+				serverUrl: runtimeUrl,
+				configuredServerUrl,
+				port: runtime.port,
+				project: runtime.project,
 				lastConnectedAt: runtime.lastConnectedAt,
 				lastServerRequestAt: runtime.lastServerRequestAt,
 				lastError: runtime.lastError,
@@ -157,12 +175,17 @@ export class BridgeClient {
 			};
 		}
 
+		const configuredServerUrl = this.#configuredServerUrl ?? loadBridgeConfig().serverUrl;
+		const serverUrl = this.#serverUrlInUse ?? configuredServerUrl;
 		return {
 			extension: { name: extensionConfig.name, version: extensionConfig.version },
 			connected: this.#connectionState === 'connected',
 			connectionState: this.#connectionState,
 			transport: this.#transport === 'none' ? inferredTransport : this.#transport,
-			serverUrl: loadBridgeConfig().serverUrl,
+			serverUrl,
+			configuredServerUrl,
+			port: this.#leaseInUse?.port,
+			project: this.#leaseInUse?.project,
 			lastConnectedAt: this.#lastConnectedAt,
 			lastServerRequestAt: this.#lastServerRequestAt,
 			lastError: this.#lastError,
@@ -193,6 +216,9 @@ export class BridgeClient {
 			updatedAt: now,
 			connectionState: this.#connectionState,
 			transport: this.#transport,
+			serverUrl: this.#serverUrlInUse ?? this.#configuredServerUrl ?? loadBridgeConfig().serverUrl,
+			port: this.#leaseInUse?.port,
+			project: this.#leaseInUse?.project,
 			lastConnectedAt: this.#lastConnectedAt,
 			lastServerRequestAt: this.#lastServerRequestAt,
 			lastError: this.#lastError,
@@ -225,6 +251,11 @@ export class BridgeClient {
 
 	#autoTick(): void {
 		if (!this.#autoEnabled) return;
+
+		const lease = this.#leaseInUse;
+		if (lease) {
+			void refreshBridgePortLease(lease.port, lease.project.uuid);
+		}
 
 		// If connection is stale (no server traffic), drop and retry (SYS_WebSocket has no onclose callback).
 		if (this.#connectionState === 'connected' && this.#lastServerRequestAt) {
@@ -288,7 +319,39 @@ export class BridgeClient {
 	}
 
 	connect(opts: { onRequest: (method: string, params: unknown) => Promise<unknown>; onInfo?: (msg: string) => void }): void {
+		if (this.#connectInProgress) return;
+		if (this.#connectionState === 'connected' || this.#connectionState === 'connecting') {
+			this.#pushLog('warn', 'connect() ignored: already connected/connecting', { state: this.#connectionState });
+			opts.onInfo?.(this.#connectionState === 'connected' ? 'MCP bridge already connected.' : 'MCP bridge is connecting...');
+			return;
+		}
+
+		this.#connectInProgress = true;
+		void this.#connectAsync(opts).finally(() => {
+			this.#connectInProgress = false;
+		});
+	}
+
+	async #connectAsync(opts: { onRequest: (method: string, params: unknown) => Promise<unknown>; onInfo?: (msg: string) => void }): Promise<void> {
 		const cfg = loadBridgeConfig();
+		this.#configuredServerUrl = cfg.serverUrl;
+
+		let serverUrl = cfg.serverUrl;
+		try {
+			const resolved = await resolveBridgeServerUrl(cfg.serverUrl);
+			serverUrl = resolved.serverUrl;
+			this.#serverUrlInUse = serverUrl;
+			this.#leaseInUse = resolved.lease;
+		} catch (err: any) {
+			const code = typeof err?.code === 'string' ? err.code : 'INTERNAL_ERROR';
+			const message = typeof err?.message === 'string' ? err.message : String(err);
+			this.#lastError = `${code}: ${message}`;
+			this.#pushLog('error', 'resolveBridgeServerUrl failed', { code, message, configuredServerUrl: cfg.serverUrl });
+			opts.onInfo?.(this.#lastError);
+			this.#setState('disconnected');
+			return;
+		}
+
 		const connectTimeoutMs = 8_000;
 
 		this.#handshakeOk = false;
@@ -297,22 +360,29 @@ export class BridgeClient {
 
 		const runtime = loadRuntimeState();
 		if (runtime && runtime.connectionState !== 'disconnected') {
-			const age = Date.now() - runtime.updatedAt;
-			const trafficAge = runtime.lastServerRequestAt ? Date.now() - runtime.lastServerRequestAt : undefined;
-			// Avoid registering SYS_WebSocket repeatedly across different extension sandboxes.
-			const shouldAssumeAnotherSandboxOwnsConnection =
-				(runtime.connectionState === 'connecting' && age < 12_000) ||
-				(runtime.connectionState === 'connected' && trafficAge !== undefined && trafficAge < 20_000);
-			if (shouldAssumeAnotherSandboxOwnsConnection) {
-				opts.onInfo?.(runtime.connectionState === 'connected' ? 'MCP bridge already connected.' : 'MCP bridge is connecting...');
-				return;
+			const sameUrl = typeof runtime.serverUrl === 'string' && runtime.serverUrl === serverUrl;
+			if (sameUrl) {
+				const age = Date.now() - runtime.updatedAt;
+				const trafficAge = runtime.lastServerRequestAt ? Date.now() - runtime.lastServerRequestAt : undefined;
+				// Avoid registering SYS_WebSocket repeatedly across different extension sandboxes.
+				const shouldAssumeAnotherSandboxOwnsConnection =
+					(runtime.connectionState === 'connecting' && age < 12_000) ||
+					(runtime.connectionState === 'connected' && trafficAge !== undefined && trafficAge < 20_000);
+				if (shouldAssumeAnotherSandboxOwnsConnection) {
+					opts.onInfo?.(runtime.connectionState === 'connected' ? 'MCP bridge already connected.' : 'MCP bridge is connecting...');
+					return;
+				}
 			}
 		}
 
-		this.#pushLog('info', 'connect() called', { serverUrl: cfg.serverUrl });
+		this.#pushLog('info', 'connect() called', { serverUrl, configuredServerUrl: cfg.serverUrl, lease: this.#leaseInUse });
 
 		const preferSys = this.#hasSysWebSocket();
-		this.#transport = preferSys ? 'sys_WebSocket' : typeof (globalThis as any).WebSocket === 'function' ? 'globalWebSocket' : 'none';
+		this.#transport = preferSys
+			? 'sys_WebSocket'
+			: typeof (globalThis as any).WebSocket === 'function'
+				? 'globalWebSocket'
+				: 'none';
 		this.#persistRuntime(true);
 
 		this.#lastError = undefined;
@@ -323,16 +393,10 @@ export class BridgeClient {
 			return;
 		}
 
-		if (this.#connectionState === 'connected' || this.#connectionState === 'connecting') {
-			this.#pushLog('warn', 'connect() ignored: already connected/connecting', { state: this.#connectionState });
-			opts.onInfo?.(this.#connectionState === 'connected' ? 'MCP bridge already connected.' : 'MCP bridge is connecting...');
-			return;
-		}
-
 		// Prefer SYS_WebSocket in JLCEDA Pro (native WebSocket may be unavailable in the sandbox).
 		if (this.#transport === 'sys_WebSocket') {
 			// If URL changed, ensure old connection is closed; SYS_WebSocket keeps ID state internally.
-			if (this.#registeredUrl && this.#registeredUrl !== cfg.serverUrl) {
+			if (this.#registeredUrl && this.#registeredUrl !== serverUrl) {
 				try {
 					(eda as any).sys_WebSocket.close(BridgeClient.SYS_WS_ID, 1000, 'Reconfigure');
 				} catch {
@@ -340,16 +404,16 @@ export class BridgeClient {
 				}
 			}
 
-			this.#registeredUrl = cfg.serverUrl;
+			this.#registeredUrl = serverUrl;
 			this.#setState('connecting');
-			opts.onInfo?.(`Connecting to ${cfg.serverUrl}...`);
-			this.#pushLog('info', 'sys_WebSocket.register', { id: BridgeClient.SYS_WS_ID, url: cfg.serverUrl });
+			opts.onInfo?.(`Connecting to ${serverUrl}...`);
+			this.#pushLog('info', 'sys_WebSocket.register', { id: BridgeClient.SYS_WS_ID, url: serverUrl });
 
 			if (this.#connectTimer) clearTimeout(this.#connectTimer);
 			this.#connectTimer = setTimeout(() => {
 				if (this.#connectionState !== 'connecting') return;
-				this.#lastError = `Connect timeout after ${connectTimeoutMs}ms (url ${cfg.serverUrl}). Is the MCP server running and reachable?`;
-				this.#pushLog('error', 'connect timeout', { timeoutMs: connectTimeoutMs, url: cfg.serverUrl, transport: 'sys_WebSocket' });
+				this.#lastError = `Connect timeout after ${connectTimeoutMs}ms (url ${serverUrl}). Is the bridge server running and reachable?`;
+				this.#pushLog('error', 'connect timeout', { timeoutMs: connectTimeoutMs, url: serverUrl, transport: 'sys_WebSocket' });
 				opts.onInfo?.(this.#lastError);
 				this.#setState('disconnected');
 				try {
@@ -377,7 +441,7 @@ export class BridgeClient {
 					this.#clearHandshakeTimer();
 					this.#pushLog('info', 'handshake confirmed (first server request)', { method: msg.method });
 					this.#setState('connected');
-					opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
+					opts.onInfo?.(`Connected to ${serverUrl}`);
 				}
 
 				try {
@@ -405,7 +469,7 @@ export class BridgeClient {
 				if (this.#connectTimer) clearTimeout(this.#connectTimer);
 				this.#connectTimer = undefined;
 				this.#lastConnectedAt = Date.now();
-				this.#pushLog('info', 'sys_WebSocket connected', { url: cfg.serverUrl });
+				this.#pushLog('info', 'sys_WebSocket connected', { url: serverUrl });
 
 				let edaVersion: string | undefined;
 				try {
@@ -417,6 +481,8 @@ export class BridgeClient {
 				const hello: RpcHello = {
 					type: 'hello',
 					app: { name: extensionConfig.name, version: extensionConfig.version, edaVersion },
+					project: this.#leaseInUse?.project,
+					server: { url: serverUrl, port: this.#leaseInUse?.port },
 				};
 				try {
 					(eda as any).sys_WebSocket.send(BridgeClient.SYS_WS_ID, toJson(hello));
@@ -427,13 +493,13 @@ export class BridgeClient {
 					this.#pushLog('error', 'hello send failed', { error: msg });
 				}
 
-				this.#startHandshakeWatchdog(cfg.serverUrl, opts);
+				this.#startHandshakeWatchdog(serverUrl, opts);
 				// Ensure connected/hello logs are persisted even if state changes quickly.
 				this.#persistRuntime(true);
 			};
 
 			try {
-				(eda as any).sys_WebSocket.register(BridgeClient.SYS_WS_ID, cfg.serverUrl, onMessage, onConnected);
+				(eda as any).sys_WebSocket.register(BridgeClient.SYS_WS_ID, serverUrl, onMessage, onConnected);
 			} catch (err) {
 				if (this.#connectTimer) clearTimeout(this.#connectTimer);
 				this.#connectTimer = undefined;
@@ -457,22 +523,22 @@ export class BridgeClient {
 		}
 
 		this.#setState('connecting');
-		opts.onInfo?.(`Connecting to ${cfg.serverUrl}...`);
+		opts.onInfo?.(`Connecting to ${serverUrl}...`);
 
 		let ws: WebSocket;
 		try {
-			ws = new (globalThis as any).WebSocket(cfg.serverUrl);
+			ws = new (globalThis as any).WebSocket(serverUrl);
 		} catch (err) {
 			this.#setState('disconnected');
 			const msg = err instanceof Error ? err.message : String(err);
-			this.#lastError = `WebSocket constructor failed (url ${cfg.serverUrl}): ${msg}`;
+			this.#lastError = `WebSocket constructor failed (url ${serverUrl}): ${msg}`;
 			this.#pushLog('error', 'WebSocket constructor failed', { error: msg });
 			opts.onInfo?.(this.#lastError);
 			return;
 		}
 
 		this.#socket = ws;
-		this.#pushLog('debug', 'WebSocket created', { url: cfg.serverUrl, readyState: (ws as any).readyState });
+		this.#pushLog('debug', 'WebSocket created', { url: serverUrl, readyState: (ws as any).readyState });
 
 		if (this.#connectTimer) clearTimeout(this.#connectTimer);
 		this.#connectTimer = setTimeout(() => {
@@ -480,8 +546,8 @@ export class BridgeClient {
 			if (!ws) return;
 			if ((ws as any).readyState !== (globalThis as any).WebSocket.CONNECTING) return;
 
-			this.#lastError = `Connect timeout after ${connectTimeoutMs}ms (url ${cfg.serverUrl}). Is the MCP server running and reachable?`;
-			this.#pushLog('error', 'connect timeout', { timeoutMs: connectTimeoutMs, url: cfg.serverUrl, transport: 'globalWebSocket' });
+			this.#lastError = `Connect timeout after ${connectTimeoutMs}ms (url ${serverUrl}). Is the bridge server running and reachable?`;
+			this.#pushLog('error', 'connect timeout', { timeoutMs: connectTimeoutMs, url: serverUrl, transport: 'globalWebSocket' });
 			opts.onInfo?.(this.#lastError);
 			try {
 				ws.close(4004, 'Connect timeout');
@@ -496,7 +562,7 @@ export class BridgeClient {
 			if (this.#connectTimer) clearTimeout(this.#connectTimer);
 			this.#connectTimer = undefined;
 			this.#lastConnectedAt = Date.now();
-			this.#pushLog('info', 'WebSocket onopen', { url: cfg.serverUrl });
+			this.#pushLog('info', 'WebSocket onopen', { url: serverUrl });
 			let edaVersion: string | undefined;
 			try {
 				edaVersion = eda.sys_Environment.getEditorCurrentVersion();
@@ -506,10 +572,12 @@ export class BridgeClient {
 			const hello: RpcHello = {
 				type: 'hello',
 				app: { name: extensionConfig.name, version: extensionConfig.version, edaVersion },
+				project: this.#leaseInUse?.project,
+				server: { url: serverUrl, port: this.#leaseInUse?.port },
 			};
 			(ws as any).send(toJson(hello));
 			this.#pushLog('debug', 'hello sent', { app: hello.app });
-			this.#startHandshakeWatchdog(cfg.serverUrl, opts);
+			this.#startHandshakeWatchdog(serverUrl, opts);
 			this.#persistRuntime(true);
 		};
 
@@ -530,7 +598,7 @@ export class BridgeClient {
 				this.#clearHandshakeTimer();
 				this.#pushLog('info', 'handshake confirmed (first server request)', { method: msg.method });
 				this.#setState('connected');
-				opts.onInfo?.(`Connected to ${cfg.serverUrl}`);
+				opts.onInfo?.(`Connected to ${serverUrl}`);
 			}
 
 			const ws = this.#socket;
@@ -562,8 +630,8 @@ export class BridgeClient {
 			this.#connectTimer = undefined;
 			this.#clearHandshakeTimer();
 			this.#handshakeOk = false;
-			this.#lastError = `WebSocket error (url ${cfg.serverUrl})`;
-			this.#pushLog('error', 'WebSocket onerror', { url: cfg.serverUrl });
+			this.#lastError = `WebSocket error (url ${serverUrl})`;
+			this.#pushLog('error', 'WebSocket onerror', { url: serverUrl });
 			opts.onInfo?.(this.#lastError);
 		};
 
@@ -574,7 +642,7 @@ export class BridgeClient {
 			this.#handshakeOk = false;
 			const reason = (ev as any)?.reason ? String((ev as any).reason) : '';
 			this.#lastError = `Disconnected (code ${(ev as any)?.code ?? 'unknown'}${reason ? `: ${reason}` : ''})`;
-			this.#pushLog('warn', 'WebSocket onclose', { code: (ev as any)?.code, reason, url: cfg.serverUrl });
+			this.#pushLog('warn', 'WebSocket onclose', { code: (ev as any)?.code, reason, url: serverUrl });
 			opts.onInfo?.(this.#lastError);
 			this.#socket = undefined;
 			this.#setState('disconnected');

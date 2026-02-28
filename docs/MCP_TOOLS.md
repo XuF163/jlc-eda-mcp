@@ -23,7 +23,7 @@
 ## 文档 / 导出
 
 - `jlc.document.current`：当前焦点文档信息（documentType/uuid/tabId）
-- `jlc.view.capture_png`：抓取当前渲染区域 PNG（可选先 `zoomToAll`）
+- `jlc.view.capture_png`：抓取当前渲染区域 PNG（可选先 `zoomToAll`；支持 `returnBase64:true` 直接回传 PNG base64）
 - `jlc.document.export_epro2`：导出当前文档为 `.epro2/.epro`
 - `jlc.document.get_source`：获取文档源码（默认截断到 `maxChars=200000`）
 - `jlc.schematic.export_netlist`：导出当前原理图网表文件

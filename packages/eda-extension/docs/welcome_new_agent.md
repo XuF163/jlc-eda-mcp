@@ -172,7 +172,7 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 常用：
 
 - `jlc.document.export_epro2`：导出工程
-- `jlc.view.capture_png`：抓取当前视图 PNG
+- `jlc.view.capture_png`：抓取当前视图 PNG（想落盘到你运行 `websocat` 的当前工作目录：传 `savePath`，或用 `returnBase64:true` 自己落盘）
 
 如果导出失败，优先排查扩展权限与保存路径可写。
 
@@ -220,4 +220,3 @@ Stop-Process -Id <PID> -Force
 3) `../../../docs/EDA_EXTENSION_RPC.md`（RPC 方法清单）
 4) `../../../docs/SCHEMATIC_IR.md`（画图 IR 规范）
 5) `../../README.md`（扩展安装与常见问题）
-

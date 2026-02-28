@@ -25,7 +25,7 @@ LLM 侧如果想“全量调用 EDA 的任意 API”，优先用 `eda.keys / eda
 - `getCurrentDocumentInfo` → `dmt_SelectControl.getCurrentDocumentInfo()` 的结果（可能为 `undefined`）
 - `ensureSchematicPage`：`{ boardName?, schematicName?, pageName? }`  
   若当前不在原理图页：创建 schematic + page 并打开/激活，返回 `{ documentType:1, uuid, tabId }`
-- `captureRenderedAreaImage`：`{ tabId?, zoomToAll?, savePath?, fileName?, force? }` → 保存 PNG（或触发下载）
+- `captureRenderedAreaImage`：`{ tabId?, zoomToAll?, savePath?, returnBase64?, fileName?, force? }` → 保存 PNG / 返回 base64（或触发下载）
 - `exportDocumentFile`：`{ fileType?:'.epro2'|'.epro', password?, savePath?, fileName?, force? }` → 导出当前文档文件
 - `getDocumentSource`：`{ maxChars? }` → `{ source, truncated, totalChars }`
 - `exportSchematicNetlistFile`：`{ netlistType?, savePath?, fileName?, force? }` → 导出网表文件

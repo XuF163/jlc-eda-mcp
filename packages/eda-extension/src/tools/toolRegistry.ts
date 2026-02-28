@@ -78,6 +78,7 @@ const CaptureRenderedAreaSchema = z.object({
 	zoomToAll: z.boolean().optional(),
 	savePath: z.string().min(1).optional(),
 	fileName: z.string().min(1).optional(),
+	returnBase64: z.boolean().optional(),
 	force: z.boolean().optional(),
 });
 
@@ -429,7 +430,8 @@ export function createToolRegistry(opts: { getStatus: () => BridgeStatusSnapshot
 		},
 		{
 			name: 'jlc.view.capture_png',
-			description: 'Capture the current rendered area image (PNG) and save to file system (defaults to EDA path if available).',
+			description:
+				'Capture the current rendered area image (PNG). Save to file system (defaults to EDA path if available) or return base64 when returnBase64=true.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -437,6 +439,7 @@ export function createToolRegistry(opts: { getStatus: () => BridgeStatusSnapshot
 					zoomToAll: { type: 'boolean' },
 					savePath: { type: 'string' },
 					fileName: { type: 'string' },
+					returnBase64: { type: 'boolean' },
 					force: { type: 'boolean' },
 				},
 				additionalProperties: false,
@@ -1028,4 +1031,3 @@ export function createToolRegistry(opts: { getStatus: () => BridgeStatusSnapshot
 		},
 	];
 }
-

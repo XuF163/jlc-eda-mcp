@@ -124,6 +124,8 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 - `SYS_FileSystem.*`
 - `SYS_FileManager.getDocumentFile`
 
+补充：抓图/导出类能力（如 `jlc.view.capture_png` / `jlc.document.export_epro2`）的 `savePath` 不传时，扩展会默认尝试使用 EDA Path；如果你希望文件落盘到你运行 `websocat` 的当前工作目录，请在请求里显式传 `savePath`（Windows Git Bash 推荐 `$(pwd -W)/`）。另：`jlc.view.capture_png` 支持 `returnBase64:true`，可由调用方自行落盘到当前目录。
+
 ### 4) 原理图方法报 `NOT_IN_SCHEMATIC_PAGE`
 
 很多原理图 API 需要当前焦点文档是原理图页。可先调用：

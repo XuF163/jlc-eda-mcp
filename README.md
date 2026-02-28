@@ -69,7 +69,7 @@ printf '%s\n' '{"type":"request","id":"1","method":"tools.call","params":{"name"
 ```bash
 node packages/mcp-server/dist/cli.js --port 9050
 ```
-
+由于历史原因，为兼容部分老用户，相关npm包暂不删除，但不再推荐使用
 （可选）npx 配置示例：
 
 ```json

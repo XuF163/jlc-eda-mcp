@@ -8,6 +8,32 @@ type CurrentDocInfo = {
 	parentLibraryUuid?: string;
 };
 
+function encodeBase64(bytes: Uint8Array): string {
+	const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+	const out: Array<string> = [];
+	for (let i = 0; i < bytes.length; i += 3) {
+		const b1 = bytes[i] ?? 0;
+		const hasB2 = i + 1 < bytes.length;
+		const hasB3 = i + 2 < bytes.length;
+		const b2 = hasB2 ? bytes[i + 1]! : 0;
+		const b3 = hasB3 ? bytes[i + 2]! : 0;
+		const triple = (b1 << 16) | (b2 << 8) | b3;
+		out.push(
+			alphabet[(triple >> 18) & 63]!,
+			alphabet[(triple >> 12) & 63]!,
+			hasB2 ? alphabet[(triple >> 6) & 63]! : '=',
+			hasB3 ? alphabet[triple & 63]! : '=',
+		);
+	}
+	return out.join('');
+}
+
+async function blobToBase64(blob: Blob): Promise<{ base64: string; sizeBytes: number; mimeType?: string }> {
+	const buf = await blob.arrayBuffer();
+	const bytes = new Uint8Array(buf);
+	return { base64: encodeBase64(bytes), sizeBytes: bytes.byteLength, mimeType: blob.type || undefined };
+}
+
 function getTimestampForFileName(): string {
 	return safeFileName(new Date().toISOString());
 }
@@ -58,12 +84,18 @@ export async function ensureSchematicPage(params: unknown): Promise<CurrentDocIn
 	};
 }
 
-export async function captureRenderedAreaImage(params: unknown): Promise<{ savedTo?: string; fileName: string; downloadTriggered?: boolean }> {
+export async function captureRenderedAreaImage(
+	params: unknown,
+): Promise<
+	| { savedTo?: string; fileName: string; downloadTriggered?: boolean }
+	| { fileName: string; base64: string; sizeBytes: number; mimeType?: string }
+> {
 	const input = params ? asObject(params, 'params') : {};
 	const tabId = asOptionalString(input.tabId, 'tabId');
 	const zoomToAll = asOptionalBoolean(input.zoomToAll, 'zoomToAll') ?? true;
 	const savePath = asOptionalString(input.savePath, 'savePath');
 	const fileNameInput = asOptionalString(input.fileName, 'fileName');
+	const returnBase64 = asOptionalBoolean(input.returnBase64, 'returnBase64') ?? false;
 	const force = asOptionalBoolean(input.force, 'force') ?? true;
 
 	const current = await eda.dmt_SelectControl.getCurrentDocumentInfo();
@@ -78,6 +110,11 @@ export async function captureRenderedAreaImage(params: unknown): Promise<{ saved
 	if (!image) throw rpcError('CAPTURE_FAILED', 'Failed to capture rendered area image');
 
 	const fileName = safeFileName(fileNameInput || `jlceda_mcp_capture_${getTimestampForFileName()}.png`);
+
+	if (returnBase64) {
+		const { base64, sizeBytes, mimeType } = await blobToBase64(image);
+		return { fileName, base64, sizeBytes, mimeType };
+	}
 
 	let resolvedSavePath = savePath;
 	if (!resolvedSavePath) {
@@ -144,4 +181,3 @@ export async function getDocumentSource(params: unknown): Promise<{ source?: str
 	if (source.length <= maxChars) return { source, truncated: false, totalChars: source.length };
 	return { source: source.slice(0, maxChars), truncated: true, totalChars: source.length };
 }
-
