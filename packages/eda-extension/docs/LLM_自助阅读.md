@@ -5,7 +5,7 @@
 建议阅读顺序：
 
 - 新接入/零上下文：`welcome_new_agent.md`
-- 然后从 skills 开始：`skills/README.md`、`skills/jlceda-eda-rest/SKILL.md`
+- 然后从 skills 开始：`skills/skills/Repo-local-skills.md`、`skills/jlceda-eda-rest/SKILL.md`
 
 说明：
 
